@@ -61,7 +61,7 @@ class COHFACELoader(BaseLoader):
                              "path": os.path.join(data_dir, str(i))})
         return dirs
 
-    def preprocess_dataset(self, data_dirs, config_preprocess):
+    def preprocess_dataset(self, data_dirs, config_preprocess, begin, end):
         """Preprocesses the raw data."""
 
         # Read Video Frames
