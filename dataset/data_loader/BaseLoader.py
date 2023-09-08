@@ -23,6 +23,11 @@ import pandas as pd
 from torch.utils.data import Dataset
 from tqdm import tqdm
 
+import mediapipe as mp
+import roi_segmentation.DEFINITION_FACEMASK
+import roi_segmentation.helper_code as helper
+from roi_segmentation.surface_normal_vector import helper_functions
+
 
 class BaseLoader(Dataset):
     """The base class for data loading based on pytorch Dataset.
@@ -105,12 +110,12 @@ class BaseLoader(Dataset):
         # item_path_filename is simply the filename of the specific clip
         # For example, the preceding item_path's filename would be 501_input0.npy
         item_path_filename = item_path.split(os.sep)[-1]
-        # split_idx represents the point in the previous filename where we want to split the string 
+        # split_idx represents the point in the previous filename where we want to split the string
         # in order to retrieve a more precise filename (e.g., 501) preceding the chunk (e.g., input0)
         split_idx = item_path_filename.rindex('_')
         # Following the previous comments, the filename for example would be 501
         filename = item_path_filename[:split_idx]
-        # chunk_id is the extracted, numeric chunk identifier. Following the previous comments, 
+        # chunk_id is the extracted, numeric chunk identifier. Following the previous comments,
         # the chunk_id for example would be 0
         chunk_id = item_path_filename[split_idx + 6:].split('.')[0]
         return data, label, filename, chunk_id
@@ -124,7 +129,7 @@ class BaseLoader(Dataset):
         raise Exception("'get_raw_data' Not Implemented")
 
     def split_raw_data(self, data_dirs, begin, end):
-        """Returns a subset of data dirs, split with begin and end values, 
+        """Returns a subset of data dirs, split with begin and end values,
         and ensures no overlapping subjects between splits.
 
         Args:
@@ -187,12 +192,12 @@ class BaseLoader(Dataset):
         pos_bvp = signal.filtfilt(b, a, bvp.astype(np.double))
 
         # apply hilbert normalization to normalize PPG amplitude
-        analytic_signal = signal.hilbert(pos_bvp) 
+        analytic_signal = signal.hilbert(pos_bvp)
         amplitude_envelope = np.abs(analytic_signal) # derive envelope signal
         env_norm_bvp = pos_bvp/amplitude_envelope # normalize by env
 
         return np.array(env_norm_bvp) # return POS psuedo labels
-    
+
     def preprocess_dataset(self, data_dirs, config_preprocess, begin, end):
         """Parses and preprocesses all the raw data based on split.
 
@@ -202,9 +207,9 @@ class BaseLoader(Dataset):
             begin(float): index of begining during train/val split.
             end(float): index of ending during train/val split.
         """
-        data_dirs_split = self.split_raw_data(data_dirs, begin, end)  # partition dataset 
+        data_dirs_split = self.split_raw_data(data_dirs, begin, end)  # partition dataset
         # send data directories to be processed
-        file_list_dict = self.multi_process_manager(data_dirs_split, config_preprocess) 
+        file_list_dict = self.multi_process_manager(data_dirs_split, config_preprocess)
         self.build_file_list(file_list_dict)  # build file list
         self.load_preprocessed_data()  # load all data and corresponding labels (sorted for consistency)
         print("Total Number of raw files preprocessed:", len(data_dirs_split), end='\n\n')
@@ -220,6 +225,13 @@ class BaseLoader(Dataset):
             frame_clips(np.array): processed video data by frames
             bvps_clips(np.array): processed bvp (ppg) labels by frames
         """
+        # perform ROI segmentation based on defined threshold for reflectance angles
+        frames = self.roi_segmentation_for_video(frames,
+                                       config_preprocess.ROI_SEGMENTATION.DO_SEGMENTATION,
+                                       config_preprocess.ROI_SEGMENTATION.THRESHOLD,
+                                       config_preprocess.ROI_SEGMENTATION.USE_CONVEX_HULL,
+                                       config_preprocess.ROI_SEGMENTATION.CONSTRAIN_ROI)
+
         # resize frames and crop for face region
         frames = self.crop_face_resize(
             frames,
@@ -261,6 +273,116 @@ class BaseLoader(Dataset):
             bvps_clips = np.array([bvps])
 
         return frames_clips, bvps_clips
+
+    def calculate_roi(self, results, image, threshold=90, constrain_roi=True):
+        """
+         Calculates and extracts the region of interest (ROI) from an input image based on facial landmarks and their angles with respect to camera and surface normals.
+         It uses the results from facial landmark detection to identify and extract triangles from the face mesh that fall below the specified angle threshold.
+         The extracted triangles are returned as a list of sets of coordinates, which can be used to define the adaptive ROI.
+
+        :param results: The results of facial landmark detection by mediapipe
+        :param image: The input image for which the adaptive ROI is to be calculated.
+        :param threshold:(int, optional, default=90): The angle threshold in degrees. Triangles with angles below this threshold will be included in the adaptive ROI.
+        :param constrain_roi:(bool, optional, default=True): A flag indicating whether to constrain the adaptive ROI to a predefined set of optimal regions.
+                                        If set to True, only triangles within the predefined regions will be considered.
+        :return: A list of sets of coordinates representing the triangles that meet the angle threshold criteria and, if flag is set, are part of the adaptive ROI.
+        """
+        mesh_points_apaptive_roi_ = []
+
+        # define landmarks to be plotted
+        if constrain_roi:
+            optimal_rois = roi_segmentation.DEFINITION_FACEMASK.FOREHEAD_TESSELATION_LARGE \
+                           + roi_segmentation.DEFINITION_FACEMASK.LEFT_CHEEK_TESSELATION_LARGE \
+                           + roi_segmentation.DEFINITION_FACEMASK.RIGHT_CHEEK_TESSELATION_LARGE
+
+        for face_landmarks in results.multi_face_landmarks:
+
+            # Extract landmarks' xyz-coordinates from the detected face
+            landmark_coords_xyz = []
+            for landmark in face_landmarks.landmark:
+                x, y, z = landmark.x, landmark.y, landmark.z
+                landmark_coords_xyz.append([x, y, z])
+
+            # Calculate angles between camera and surface normal vectors for whole face mesh tessellation and draw an angle heatmap
+            for triangle in roi_segmentation.DEFINITION_FACEMASK.FACE_MESH_TESSELATION:
+                if constrain_roi:
+                    if triangle in optimal_rois:
+                        # calculate reflectance angle in degree
+                        angle_degrees = helper_functions.calculate_angle_heatmap(landmark_coords_xyz, triangle)
+
+                        if angle_degrees < threshold:
+                            # Extract the coordinates of the three landmarks of the triangle
+                            triangle_coords = helper_functions.get_triangle_coords(image, landmark_coords_xyz, triangle)
+                            mesh_points_apaptive_roi_.append(triangle_coords)
+                else:
+                    # calculate reflectance angle in degree
+                    angle_degrees = helper_functions.calculate_angle_heatmap(landmark_coords_xyz, triangle)
+
+                    if angle_degrees < threshold:
+                        # Extract the coordinates of the three landmarks of the triangle
+                        triangle_coords = helper_functions.get_triangle_coords(image, landmark_coords_xyz, triangle)
+                        mesh_points_apaptive_roi_.append(triangle_coords)
+        return mesh_points_apaptive_roi_
+
+    def roi_segmentation_for_video(self, video_frames, use_roi_segmentation, threshold=90, use_convex_hull=True, constrain_roi=True):
+
+        if use_roi_segmentation:
+
+            mp_face_mesh = mp.solutions.face_mesh
+
+            frames = list()
+            max_dim_roi = 0
+
+            with mp_face_mesh.FaceMesh(
+                    max_num_faces=1,
+                    refine_landmarks=True,
+                    min_detection_confidence=0.5,
+                    min_tracking_confidence=0.5
+            ) as face_mesh:
+                for rgb_frame in video_frames:
+                    rgb_frame = cv2.flip(rgb_frame, 1)
+
+                    results = face_mesh.process(rgb_frame)
+
+                    frame = cv2.cvtColor(np.array(rgb_frame), cv2.COLOR_RGB2BGR)
+
+                    if results.multi_face_landmarks:
+
+                        # define mesh points of each ROI if mesh triangles are below threshold
+                        mesh_points_apaptive_roi = self.calculate_roi(results, frame, threshold=threshold, constrain_roi=constrain_roi)
+
+                        # create mask of isolated ROIs below defined threshold from frame
+                        output_roi_face = helper.segment_roi(frame, mesh_points_apaptive_roi, use_convex_hull=use_convex_hull)
+
+                        # crop frame to square bounding box, centered at centroid between all ROIs
+                        x_min, y_min, x_max, y_max = helper.get_bounding_box_coordinates(output_roi_face, results)
+                        distance_max = max(x_max - x_min, y_max - y_min)
+
+                        bb_offset = 0
+                        output_roi_face = output_roi_face[int((y_min + y_max - distance_max) / 2 - bb_offset):int((y_min + y_max + distance_max) / 2 + bb_offset),
+                                          int((x_min + x_max - distance_max) / 2 - bb_offset):int((x_min + x_max + distance_max) / 2 + bb_offset)]
+
+                        try:
+                            frame = cv2.cvtColor(output_roi_face, cv2.COLOR_BGR2RGB)
+
+                            # find maximum shape of all frames
+                            max_dim_frame = max(frame.shape[0], frame.shape[1])
+                            if max_dim_frame > max_dim_roi:
+                                max_dim_roi = max_dim_frame
+
+                            frames.append(np.asarray(frame, dtype=np.uint8))
+                        except cv2.error:
+                            pass
+
+            # resize all roi frames to same shape
+            for idx in range(len(frames)):
+                frames[idx] = cv2.resize(frames[idx], (max_dim_roi, max_dim_roi))
+
+            frames = np.asarray(frames, dtype=np.uint8)
+
+            return frames
+        else:
+            return video_frames
 
     def face_detection(self, frame, use_larger_box=False, larger_box_coef=1.0):
         """Face detection on a single frame.
