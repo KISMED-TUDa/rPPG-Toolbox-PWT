@@ -67,6 +67,11 @@ _C.TRAIN.DATA.PREPROCESS.DATA_AUG = ['None']
 _C.TRAIN.DATA.PREPROCESS.LABEL_TYPE = ''
 _C.TRAIN.DATA.PREPROCESS.DO_CHUNK = True
 _C.TRAIN.DATA.PREPROCESS.CHUNK_LENGTH = 180
+_C.TRAIN.DATA.PREPROCESS.ROI_SEGMENTATION = CN()
+_C.TRAIN.DATA.PREPROCESS.ROI_SEGMENTATION.DO_SEGMENTATION = True
+_C.TRAIN.DATA.PREPROCESS.ROI_SEGMENTATION.THRESHOLD = 90
+_C.TRAIN.DATA.PREPROCESS.ROI_SEGMENTATION.USE_CONVEX_HULL = True
+_C.TRAIN.DATA.PREPROCESS.ROI_SEGMENTATION.CONSTRAIN_ROI = True
 _C.TRAIN.DATA.PREPROCESS.CROP_FACE = CN()
 _C.TRAIN.DATA.PREPROCESS.CROP_FACE.DO_CROP_FACE = True
 _C.TRAIN.DATA.PREPROCESS.CROP_FACE.USE_LARGE_FACE_BOX = True
@@ -127,6 +132,11 @@ _C.VALID.DATA.PREPROCESS.DATA_AUG = ['None']
 _C.VALID.DATA.PREPROCESS.LABEL_TYPE = ''
 _C.VALID.DATA.PREPROCESS.DO_CHUNK = True
 _C.VALID.DATA.PREPROCESS.CHUNK_LENGTH = 180
+_C.VALID.DATA.PREPROCESS.ROI_SEGMENTATION = CN()
+_C.VALID.DATA.PREPROCESS.ROI_SEGMENTATION.DO_SEGMENTATION = True
+_C.VALID.DATA.PREPROCESS.ROI_SEGMENTATION.THRESHOLD = 90
+_C.VALID.DATA.PREPROCESS.ROI_SEGMENTATION.USE_CONVEX_HULL = True
+_C.VALID.DATA.PREPROCESS.ROI_SEGMENTATION.CONSTRAIN_ROI = True
 _C.VALID.DATA.PREPROCESS.CROP_FACE = CN()
 _C.VALID.DATA.PREPROCESS.CROP_FACE.DO_CROP_FACE = True
 _C.VALID.DATA.PREPROCESS.CROP_FACE.USE_LARGE_FACE_BOX = True
@@ -191,6 +201,11 @@ _C.TEST.DATA.PREPROCESS.DATA_AUG = ['None']
 _C.TEST.DATA.PREPROCESS.LABEL_TYPE = ''
 _C.TEST.DATA.PREPROCESS.DO_CHUNK = True
 _C.TEST.DATA.PREPROCESS.CHUNK_LENGTH = 180
+_C.TEST.DATA.PREPROCESS.ROI_SEGMENTATION = CN()
+_C.TEST.DATA.PREPROCESS.ROI_SEGMENTATION.DO_SEGMENTATION = True
+_C.TEST.DATA.PREPROCESS.ROI_SEGMENTATION.THRESHOLD = 90
+_C.TEST.DATA.PREPROCESS.ROI_SEGMENTATION.USE_CONVEX_HULL = True
+_C.TEST.DATA.PREPROCESS.ROI_SEGMENTATION.CONSTRAIN_ROI = True
 _C.TEST.DATA.PREPROCESS.CROP_FACE = CN()
 _C.TEST.DATA.PREPROCESS.CROP_FACE.DO_CROP_FACE = True
 _C.TEST.DATA.PREPROCESS.CROP_FACE.USE_LARGE_FACE_BOX = True
@@ -254,6 +269,11 @@ _C.UNSUPERVISED.DATA.PREPROCESS.DATA_AUG = ['None']
 _C.UNSUPERVISED.DATA.PREPROCESS.LABEL_TYPE = ''
 _C.UNSUPERVISED.DATA.PREPROCESS.DO_CHUNK = True
 _C.UNSUPERVISED.DATA.PREPROCESS.CHUNK_LENGTH = 180
+_C.UNSUPERVISED.DATA.PREPROCESS.ROI_SEGMENTATION = CN()
+_C.UNSUPERVISED.DATA.PREPROCESS.ROI_SEGMENTATION.DO_SEGMENTATION = True
+_C.UNSUPERVISED.DATA.PREPROCESS.ROI_SEGMENTATION.THRESHOLD = 90
+_C.UNSUPERVISED.DATA.PREPROCESS.ROI_SEGMENTATION.USE_CONVEX_HULL = True
+_C.UNSUPERVISED.DATA.PREPROCESS.ROI_SEGMENTATION.CONSTRAIN_ROI = True
 _C.UNSUPERVISED.DATA.PREPROCESS.CROP_FACE = CN()
 _C.UNSUPERVISED.DATA.PREPROCESS.CROP_FACE.DO_CROP_FACE = True
 _C.UNSUPERVISED.DATA.PREPROCESS.CROP_FACE.USE_LARGE_FACE_BOX = True
@@ -367,18 +387,28 @@ def update_config(config, args):
         config.TRAIN.DATA.FILE_LIST_PATH = os.path.join(config.TRAIN.DATA.CACHED_PATH, 'DataFileLists')
 
     if config.TRAIN.DATA.EXP_DATA_NAME == '':
-        config.TRAIN.DATA.EXP_DATA_NAME = "_".join([config.TRAIN.DATA.DATASET, "SizeW{0}".format(
-            str(config.TRAIN.DATA.PREPROCESS.RESIZE.W)), "SizeH{0}".format(str(config.TRAIN.DATA.PREPROCESS.RESIZE.W)), "ClipLength{0}".format(
-            str(config.TRAIN.DATA.PREPROCESS.CHUNK_LENGTH)), "DataType{0}".format("_".join(config.TRAIN.DATA.PREPROCESS.DATA_TYPE)),
-                                      "DataAug{0}".format("_".join(config.TRAIN.DATA.PREPROCESS.DATA_AUG)),
-                                      "LabelType{0}".format(config.TRAIN.DATA.PREPROCESS.LABEL_TYPE),
-                                      "Crop_face{0}".format(config.TRAIN.DATA.PREPROCESS.CROP_FACE.DO_CROP_FACE),
-                                      "Large_box{0}".format(config.TRAIN.DATA.PREPROCESS.CROP_FACE.USE_LARGE_FACE_BOX),
-                                      "Large_size{0}".format(config.TRAIN.DATA.PREPROCESS.CROP_FACE.LARGE_BOX_COEF),
-                                      "Dyamic_Det{0}".format(config.TRAIN.DATA.PREPROCESS.CROP_FACE.DETECTION.DO_DYNAMIC_DETECTION),
-                                        "det_len{0}".format(config.TRAIN.DATA.PREPROCESS.CROP_FACE.DETECTION.DYNAMIC_DETECTION_FREQUENCY),
-                                        "Median_face_box{0}".format(config.TRAIN.DATA.PREPROCESS.CROP_FACE.DETECTION.USE_MEDIAN_FACE_BOX)
+        config.TRAIN.DATA.EXP_DATA_NAME = "_".join([config.TRAIN.DATA.DATASET,
+                                              "SizeW{0}".format(str(config.TRAIN.DATA.PREPROCESS.RESIZE.W)),
+                                              "SizeH{0}".format(str(config.TRAIN.DATA.PREPROCESS.RESIZE.H)),
+                                              "ClipLength{0}".format(str(config.TRAIN.DATA.PREPROCESS.CHUNK_LENGTH)),
+                                              "DataType{0}".format("_".join(config.TRAIN.DATA.PREPROCESS.DATA_TYPE)),
+                                              "DataAug{0}".format("_".join(config.TRAIN.DATA.PREPROCESS.DATA_AUG)),
+                                              "LabelType{0}".format(config.TRAIN.DATA.PREPROCESS.LABEL_TYPE),
+                                              "ROI_segmentation{0}".format(config.TRAIN.DATA.PREPROCESS.ROI_SEGMENTATION.DO_SEGMENTATION),
+                                              "Angle_threshold{0}".format(config.TRAIN.DATA.PREPROCESS.ROI_SEGMENTATION.THRESHOLD),
+                                              "Use_convex_hull{0}".format(config.TRAIN.DATA.PREPROCESS.ROI_SEGMENTATION.USE_CONVEX_HULL),
+                                              "Constrain_roi{0}".format(config.TRAIN.DATA.PREPROCESS.ROI_SEGMENTATION.CONSTRAIN_ROI),
+                                              # "Crop_face{0}".format(config.TRAIN.DATA.PREPROCESS.CROP_FACE.DO_CROP_FACE),
+                                              # "Large_box{0}".format(config.TRAIN.DATA.PREPROCESS.CROP_FACE.USE_LARGE_FACE_BOX),
+                                              # "Large_size{0}".format(config.TRAIN.DATA.PREPROCESS.CROP_FACE.LARGE_BOX_COEF),
+                                              # "Dyamic_Det{0}".format(config.TRAIN.DATA.PREPROCESS.CROP_FACE.DETECTION.DO_DYNAMIC_DETECTION),
+                                              # "det_len{0}".format(config.TRAIN.DATA.PREPROCESS.CROP_FACE.DETECTION.DYNAMIC_DETECTION_FREQUENCY),
+                                              # "Median_face_box{0}".format(config.TRAIN.DATA.PREPROCESS.CROP_FACE.DETECTION.USE_MEDIAN_FACE_BOX)
                                               ])
+        # shorten path, if length exceeds 255 characters
+        # (shorten to 243 characters, because of appended csv ending when saving file_list_df in function build_file_list)
+        if len(config.TRAIN.DATA.EXP_DATA_NAME) > 243:
+            config.TRAIN.DATA.EXP_DATA_NAME = config.TRAIN.DATA.EXP_DATA_NAME[0:243]
     config.TRAIN.DATA.CACHED_PATH = os.path.join(config.TRAIN.DATA.CACHED_PATH, config.TRAIN.DATA.EXP_DATA_NAME)
 
     name, ext = os.path.splitext(config.TRAIN.DATA.FILE_LIST_PATH)
@@ -402,18 +432,28 @@ def update_config(config, args):
             config.VALID.DATA.FILE_LIST_PATH = os.path.join(config.VALID.DATA.CACHED_PATH, 'DataFileLists')
 
         if config.VALID.DATA.EXP_DATA_NAME == '':
-            config.VALID.DATA.EXP_DATA_NAME = "_".join([config.VALID.DATA.DATASET, "SizeW{0}".format(
-                str(config.VALID.DATA.PREPROCESS.RESIZE.W)), "SizeH{0}".format(str(config.VALID.DATA.PREPROCESS.RESIZE.W)), "ClipLength{0}".format(
-                str(config.VALID.DATA.PREPROCESS.CHUNK_LENGTH)), "DataType{0}".format("_".join(config.VALID.DATA.PREPROCESS.DATA_TYPE)),
-                                        "DataAug{0}".format("_".join(config.VALID.DATA.PREPROCESS.DATA_AUG)),
-                                        "LabelType{0}".format(config.VALID.DATA.PREPROCESS.LABEL_TYPE),
-                                        "Crop_face{0}".format(config.VALID.DATA.PREPROCESS.CROP_FACE.DO_CROP_FACE),
-                                        "Large_box{0}".format(config.VALID.DATA.PREPROCESS.CROP_FACE.USE_LARGE_FACE_BOX),
-                                        "Large_size{0}".format(config.VALID.DATA.PREPROCESS.CROP_FACE.LARGE_BOX_COEF),
-                                        "Dyamic_Det{0}".format(config.VALID.DATA.PREPROCESS.CROP_FACE.DETECTION.DO_DYNAMIC_DETECTION),
-                                          "det_len{0}".format(config.VALID.DATA.PREPROCESS.CROP_FACE.DETECTION.DYNAMIC_DETECTION_FREQUENCY),
-                                          "Median_face_box{0}".format(config.VALID.DATA.PREPROCESS.CROP_FACE.DETECTION.USE_MEDIAN_FACE_BOX)
+            config.VALID.DATA.EXP_DATA_NAME = "_".join([config.VALID.DATA.DATASET,
+                                                "SizeW{0}".format(str(config.VALID.DATA.PREPROCESS.RESIZE.W)),
+                                                "SizeH{0}".format(str(config.VALID.DATA.PREPROCESS.RESIZE.H)),
+                                                "ClipLength{0}".format(str(config.VALID.DATA.PREPROCESS.CHUNK_LENGTH)),
+                                                "DataType{0}".format("_".join(config.VALID.DATA.PREPROCESS.DATA_TYPE)),
+                                                "DataAug{0}".format("_".join(config.VALID.DATA.PREPROCESS.DATA_AUG)),
+                                                "LabelType{0}".format(config.VALID.DATA.PREPROCESS.LABEL_TYPE),
+                                                "ROI_segmentation{0}".format(config.VALID.DATA.PREPROCESS.ROI_SEGMENTATION.DO_SEGMENTATION),
+                                                "Angle_threshold{0}".format(config.VALID.DATA.PREPROCESS.ROI_SEGMENTATION.THRESHOLD),
+                                                "Use_convex_hull{0}".format(config.VALID.DATA.PREPROCESS.ROI_SEGMENTATION.USE_CONVEX_HULL),
+                                                "Constrain_roi{0}".format(config.VALID.DATA.PREPROCESS.ROI_SEGMENTATION.CONSTRAIN_ROI),
+                                                # "Crop_face{0}".format(config.VALID.DATA.PREPROCESS.CROP_FACE.DO_CROP_FACE),
+                                                # "Large_box{0}".format(config.VALID.DATA.PREPROCESS.CROP_FACE.USE_LARGE_FACE_BOX),
+                                                # "Large_size{0}".format(config.VALID.DATA.PREPROCESS.CROP_FACE.LARGE_BOX_COEF),
+                                                # "Dyamic_Det{0}".format(config.VALID.DATA.PREPROCESS.CROP_FACE.DETECTION.DO_DYNAMIC_DETECTION),
+                                                # "det_len{0}".format(config.VALID.DATA.PREPROCESS.CROP_FACE.DETECTION.DYNAMIC_DETECTION_FREQUENCY),
+                                                # "Median_face_box{0}".format(config.VALID.DATA.PREPROCESS.CROP_FACE.DETECTION.USE_MEDIAN_FACE_BOX)
                                                 ])
+            # shorten path, if length exceeds 255 characters
+            # (shorten to 243 characters, because of appended csv ending when saving file_list_df in function build_file_list)
+            if len(config.VALID.DATA.EXP_DATA_NAME) > 243:
+                config.VALID.DATA.EXP_DATA_NAME = config.VALID.DATA.EXP_DATA_NAME[0:243]
         config.VALID.DATA.CACHED_PATH = os.path.join(config.VALID.DATA.CACHED_PATH, config.VALID.DATA.EXP_DATA_NAME)
 
         name, ext = os.path.splitext(config.VALID.DATA.FILE_LIST_PATH)
@@ -438,18 +478,28 @@ def update_config(config, args):
         config.TEST.DATA.FILE_LIST_PATH = os.path.join(config.TEST.DATA.CACHED_PATH, 'DataFileLists')
 
     if config.TEST.DATA.EXP_DATA_NAME == '':
-        config.TEST.DATA.EXP_DATA_NAME = "_".join([config.TEST.DATA.DATASET, "SizeW{0}".format(
-            str(config.TEST.DATA.PREPROCESS.RESIZE.W)), "SizeH{0}".format(str(config.TEST.DATA.PREPROCESS.RESIZE.H)), "ClipLength{0}".format(
-            str(config.TEST.DATA.PREPROCESS.CHUNK_LENGTH)), "DataType{0}".format("_".join(config.TEST.DATA.PREPROCESS.DATA_TYPE)),
-                                      "DataAug{0}".format("_".join(config.TEST.DATA.PREPROCESS.DATA_AUG)),
-                                      "LabelType{0}".format(config.TEST.DATA.PREPROCESS.LABEL_TYPE),
-                                      "Crop_face{0}".format(config.TEST.DATA.PREPROCESS.CROP_FACE.DO_CROP_FACE),
-                                      "Large_box{0}".format(config.TEST.DATA.PREPROCESS.CROP_FACE.USE_LARGE_FACE_BOX),
-                                      "Large_size{0}".format(config.TEST.DATA.PREPROCESS.CROP_FACE.LARGE_BOX_COEF),
-                                      "Dyamic_Det{0}".format(config.TEST.DATA.PREPROCESS.CROP_FACE.DETECTION.DO_DYNAMIC_DETECTION),
-                                        "det_len{0}".format(config.TEST.DATA.PREPROCESS.CROP_FACE.DETECTION.DYNAMIC_DETECTION_FREQUENCY),
-                                        "Median_face_box{0}".format(config.TEST.DATA.PREPROCESS.CROP_FACE.DETECTION.USE_MEDIAN_FACE_BOX)
+        config.TEST.DATA.EXP_DATA_NAME = "_".join([config.TEST.DATA.DATASET,
+                                              "SizeW{0}".format(str(config.TEST.DATA.PREPROCESS.RESIZE.W)),
+                                              "SizeH{0}".format(str(config.TEST.DATA.PREPROCESS.RESIZE.H)),
+                                              "ClipLength{0}".format(str(config.TEST.DATA.PREPROCESS.CHUNK_LENGTH)),
+                                              "DataType{0}".format("_".join(config.TEST.DATA.PREPROCESS.DATA_TYPE)),
+                                              "DataAug{0}".format("_".join(config.TEST.DATA.PREPROCESS.DATA_AUG)),
+                                              "LabelType{0}".format(config.TEST.DATA.PREPROCESS.LABEL_TYPE),
+                                              "ROI_segmentation{0}".format(config.TEST.DATA.PREPROCESS.ROI_SEGMENTATION.DO_SEGMENTATION),
+                                              "Angle_threshold{0}".format(config.TEST.DATA.PREPROCESS.ROI_SEGMENTATION.THRESHOLD),
+                                              "Use_convex_hull{0}".format(config.TEST.DATA.PREPROCESS.ROI_SEGMENTATION.USE_CONVEX_HULL),
+                                              "Constrain_roi{0}".format(config.TEST.DATA.PREPROCESS.ROI_SEGMENTATION.CONSTRAIN_ROI),
+                                              # "Crop_face{0}".format(config.TEST.DATA.PREPROCESS.CROP_FACE.DO_CROP_FACE),
+                                              # "Large_box{0}".format(config.TEST.DATA.PREPROCESS.CROP_FACE.USE_LARGE_FACE_BOX),
+                                              # "Large_size{0}".format(config.TEST.DATA.PREPROCESS.CROP_FACE.LARGE_BOX_COEF),
+                                              # "Dyamic_Det{0}".format(config.TEST.DATA.PREPROCESS.CROP_FACE.DETECTION.DO_DYNAMIC_DETECTION),
+                                              # "det_len{0}".format(config.TEST.DATA.PREPROCESS.CROP_FACE.DETECTION.DYNAMIC_DETECTION_FREQUENCY),
+                                              # "Median_face_box{0}".format(config.TEST.DATA.PREPROCESS.CROP_FACE.DETECTION.USE_MEDIAN_FACE_BOX)
                                               ])
+        # shorten path, if length exceeds 255 characters
+        # (shorten to 243 characters, because of appended csv ending when saving file_list_df in function build_file_list)
+        if len(config.TEST.DATA.EXP_DATA_NAME) > 243:
+            config.TEST.DATA.EXP_DATA_NAME = config.TEST.DATA.EXP_DATA_NAME[0:243]
     config.TEST.DATA.CACHED_PATH = os.path.join(config.TEST.DATA.CACHED_PATH, config.TEST.DATA.EXP_DATA_NAME)
 
     name, ext = os.path.splitext(config.TEST.DATA.FILE_LIST_PATH)
@@ -506,19 +556,30 @@ def update_config(config, args):
         config.UNSUPERVISED.DATA.FILE_LIST_PATH = os.path.join(config.UNSUPERVISED.DATA.CACHED_PATH, 'DataFileLists')
 
     if config.UNSUPERVISED.DATA.EXP_DATA_NAME == '':
-        config.UNSUPERVISED.DATA.EXP_DATA_NAME = "_".join([config.UNSUPERVISED.DATA.DATASET, "SizeW{0}".format(
-            str(config.UNSUPERVISED.DATA.PREPROCESS.RESIZE.W)), "SizeH{0}".format(str(config.UNSUPERVISED.DATA.PREPROCESS.RESIZE.W)), "ClipLength{0}".format(
-            str(config.UNSUPERVISED.DATA.PREPROCESS.CHUNK_LENGTH)), "DataType{0}".format("_".join(config.UNSUPERVISED.DATA.PREPROCESS.DATA_TYPE)),
-                                      "DataAug{0}".format("_".join(config.UNSUPERVISED.DATA.PREPROCESS.DATA_AUG)),
-                                      "LabelType{0}".format(config.UNSUPERVISED.DATA.PREPROCESS.LABEL_TYPE),
-                                      "Crop_face{0}".format(config.UNSUPERVISED.DATA.PREPROCESS.CROP_FACE.DO_CROP_FACE),
-                                      "Large_box{0}".format(config.UNSUPERVISED.DATA.PREPROCESS.CROP_FACE.USE_LARGE_FACE_BOX),
-                                      "Large_size{0}".format(config.UNSUPERVISED.DATA.PREPROCESS.CROP_FACE.LARGE_BOX_COEF),
-                                      "Dyamic_Det{0}".format(config.UNSUPERVISED.DATA.PREPROCESS.CROP_FACE.DETECTION.DO_DYNAMIC_DETECTION),
-                                        "det_len{0}".format(config.UNSUPERVISED.DATA.PREPROCESS.CROP_FACE.DETECTION.DYNAMIC_DETECTION_FREQUENCY),
-                                        "Median_face_box{0}".format(config.UNSUPERVISED.DATA.PREPROCESS.CROP_FACE.DETECTION.USE_MEDIAN_FACE_BOX),
-                                        "unsupervised"
-                                              ])
+        config.UNSUPERVISED.DATA.EXP_DATA_NAME = "_".join([config.UNSUPERVISED.DATA.DATASET,
+                                                    "SizeW{0}".format(str(config.UNSUPERVISED.DATA.PREPROCESS.RESIZE.W)),
+                                                    "SizeH{0}".format(str(config.UNSUPERVISED.DATA.PREPROCESS.RESIZE.H)),
+                                                    "ClipLength{0}".format(str(config.UNSUPERVISED.DATA.PREPROCESS.CHUNK_LENGTH)),
+                                                    "DataType{0}".format("_".join(config.UNSUPERVISED.DATA.PREPROCESS.DATA_TYPE)),
+                                                    "DataAug{0}".format("_".join(config.UNSUPERVISED.DATA.PREPROCESS.DATA_AUG)),
+                                                    "LabelType{0}".format(config.UNSUPERVISED.DATA.PREPROCESS.LABEL_TYPE),
+                                                    "ROI_segmentation{0}".format(config.UNSUPERVISED.DATA.PREPROCESS.ROI_SEGMENTATION.DO_SEGMENTATION),
+                                                    "Angle_threshold{0}".format(config.UNSUPERVISED.DATA.PREPROCESS.ROI_SEGMENTATION.THRESHOLD),
+                                                    "Use_convex_hull{0}".format(config.UNSUPERVISED.DATA.PREPROCESS.ROI_SEGMENTATION.USE_CONVEX_HULL),
+                                                    "Constrain_roi{0}".format(config.UNSUPERVISED.DATA.PREPROCESS.ROI_SEGMENTATION.CONSTRAIN_ROI),
+                                                    # "Crop_face{0}".format(config.UNSUPERVISED.DATA.PREPROCESS.CROP_FACE.DO_CROP_FACE),
+                                                    # "Large_box{0}".format(config.UNSUPERVISED.DATA.PREPROCESS.CROP_FACE.USE_LARGE_FACE_BOX),
+                                                    # "Large_size{0}".format(config.UNSUPERVISED.DATA.PREPROCESS.CROP_FACE.LARGE_BOX_COEF),
+                                                    # "Dyamic_Det{0}".format(config.UNSUPERVISED.DATA.PREPROCESS.CROP_FACE.DETECTION.DO_DYNAMIC_DETECTION),
+                                                    # "det_len{0}".format(config.UNSUPERVISED.DATA.PREPROCESS.CROP_FACE.DETECTION.DYNAMIC_DETECTION_FREQUENCY),
+                                                    # "Median_face_box{0}".format(config.UNSUPERVISED.DATA.PREPROCESS.CROP_FACE.DETECTION.USE_MEDIAN_FACE_BOX),
+                                                    "unsupervised"
+                                                    ])
+        # shorten path, if length exceeds 255 characters
+        # (shorten to 243 characters, because of appended csv ending when saving file_list_df in function build_file_list)
+        if len(config.TEST.DATA.EXP_DATA_NAME) > 243:
+            config.TEST.DATA.EXP_DATA_NAME = config.TEST.DATA.EXP_DATA_NAME[0:243]
+
     config.UNSUPERVISED.DATA.CACHED_PATH = os.path.join(config.UNSUPERVISED.DATA.CACHED_PATH, config.UNSUPERVISED.DATA.EXP_DATA_NAME)
 
     name, ext = os.path.splitext(config.UNSUPERVISED.DATA.FILE_LIST_PATH)
