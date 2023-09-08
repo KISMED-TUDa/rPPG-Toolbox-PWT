@@ -5,10 +5,10 @@ UNSUPERVISED:
   METRICS: ['MAE','RMSE','MAPE','Pearson', 'SNR']
   DATA:
     FS: 30
-    DATASET: PURE
-    DO_PREPROCESS: False               # if first time, should be true
+    DATASET: COHFACE
+    DO_PREPROCESS: True               # if first time, should be true
     DATA_FORMAT: NDHWC
-    DATA_PATH: "g:/Uni/_Master/Semester 9 (Master Thesis)/Datasets/PURE/"                     # Raw dataset path, need to be updated
+    DATA_PATH: "g:/Uni/_Master/Semester 9 (Master Thesis)/Datasets/COHFACE/data/"       # Raw dataset path, need to be updated
     CACHED_PATH: "g:/rppg_toolbox/PreprocessedData/"             # Processed dataset save path, need to be updated
     EXP_DATA_NAME: ""
     BEGIN: 0.0
@@ -20,14 +20,14 @@ UNSUPERVISED:
       DO_CHUNK: False
       CHUNK_LENGTH: 180
       ROI_SEGMENTATION:
-        DO_SEGMENTATION: False
+        DO_SEGMENTATION: True
         THRESHOLD: 90
         USE_CONVEX_HULL: True
         CONSTRAIN_ROI: True
       CROP_FACE:
-        DO_CROP_FACE: True
-        USE_LARGE_FACE_BOX: True
-        LARGE_BOX_COEF: 1.5
+        DO_CROP_FACE: False  # True
+        USE_LARGE_FACE_BOX: False  # True
+        LARGE_BOX_COEF: 1.0 # 1.5
         DETECTION:
           DO_DYNAMIC_DETECTION: False
           DYNAMIC_DETECTION_FREQUENCY : 30
