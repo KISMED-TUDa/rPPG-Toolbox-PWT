@@ -1,6 +1,7 @@
 """ The main function of rPPG deep learning pipeline."""
 
 import argparse
+import datetime
 import os
 import random
 import time
@@ -142,10 +143,13 @@ if __name__ == "__main__":
     if config.TOOLBOX_MODE == "train_and_test":
         print(config.TRAIN, end='\n\n')
         print(config.TEST, end='\n\n')
+        print(config.INFERENCE, end='\n\n')
     if config.TOOLBOX_MODE == "only_test":
         print(config.TEST, end='\n\n')
+        print(config.INFERENCE, end='\n\n')
     elif config.TOOLBOX_MODE == "unsupervised_method":
         print(config.UNSUPERVISED, end='\n\n')
+        print(config.INFERENCE, end='\n\n')
 
     logging_path = config.UNSUPERVISED.DATA.CACHED_PATH
     if not os.path.exists(logging_path):
@@ -161,7 +165,7 @@ if __name__ == "__main__":
 
 
     #with open(config.UNSUPERVISED.DATA.CACHED_PATH + "/logging.log", "w+") as log_file:
-    log_file = open(logging_path + "/logging.log", "w+")
+    log_file = open(logging_path + "/logging_" + datetime.datetime.now().strftime('%Y_%m_%d-%H_%M_%S_') + config.INFERENCE.EVALUATION_METHOD + ".log", "w+")
     sys.stdout = log_file
 
     start_time = time.process_time()
@@ -172,10 +176,13 @@ if __name__ == "__main__":
     if config.TOOLBOX_MODE == "train_and_test":
         print(config.TRAIN, end='\n\n')
         print(config.TEST, end='\n\n')
+        print(config.INFERENCE, end='\n\n')
     if config.TOOLBOX_MODE == "only_test":
         print(config.TEST, end='\n\n')
+        print(config.INFERENCE, end='\n\n')
     elif config.TOOLBOX_MODE == "unsupervised_method":
         print(config.UNSUPERVISED, end='\n\n')
+        print(config.INFERENCE, end='\n\n')
 
     data_loader_dict = dict() # dictionary of data loaders
     if config.TOOLBOX_MODE == "train_and_test":
@@ -198,9 +205,11 @@ if __name__ == "__main__":
             train_loader = data_loader.VIPLHRv1Loader.VIPLHRv1Loader
         elif config.TRAIN.DATA.DATASET == "COHFACE":
             train_loader = data_loader.COHFACELoader.COHFACELoader
+        elif config.TRAIN.DATA.DATASET == "RLAP":
+            train_loader = data_loader.RLAPLoader.RLAPLoader
         else:
             raise ValueError("Unsupported dataset! Currently supporting UBFC-rPPG, PURE, MMPD, \
-                             SCAMPS, BP4D+ (Normal and BigSmall preprocessing), UBFC-PHYS, VIPL-HR-V1 and COHFACE.")
+                             SCAMPS, BP4D+ (Normal and BigSmall preprocessing), UBFC-PHYS, VIPL-HR-V1, COHFACE and RLAP.")
 
         # Create and initialize the train dataloader given the correct toolbox mode,
         # a supported dataset name, and a valid dataset paths
@@ -240,11 +249,13 @@ if __name__ == "__main__":
             valid_loader = data_loader.VIPLHRv1Loader.VIPLHRv1Loader
         elif config.VALID.DATA.DATASET == "COHFACE":
             valid_loader = data_loader.COHFACELoader.COHFACELoader
+        elif config.VALID.DATA.DATASET == "RLAP":
+            valid_loader = data_loader.RLAPLoader.RLAPLoader
         elif config.VALID.DATA.DATASET is None and not config.TEST.USE_LAST_EPOCH:
             raise ValueError("Validation dataset not specified despite USE_LAST_EPOCH set to False!")
         else:
             raise ValueError("Unsupported dataset! Currently supporting UBFC-rPPG, PURE, MMPD, \
-                             SCAMPS, BP4D+ (Normal and BigSmall preprocessing), UBFC-PHYS, VIPL-HR-V1 and COHFACE.")
+                             SCAMPS, BP4D+ (Normal and BigSmall preprocessing), UBFC-PHYS, VIPL-HR-V1, COHFACE and RLAP.")
         
         # Create and initialize the valid dataloader given the correct toolbox mode,
         # a supported dataset name, and a valid dataset path
@@ -284,9 +295,11 @@ if __name__ == "__main__":
             test_loader = data_loader.VIPLHRv1Loader.VIPLHRv1Loader
         elif config.TEST.DATA.DATASET == "COHFACE":
             test_loader = data_loader.COHFACELoader.COHFACELoader
+        elif config.TEST.DATA.DATASET == "RLAP":
+            test_loader = data_loader.RLAPLoader.RLAPLoader
         else:
             raise ValueError("Unsupported dataset! Currently supporting UBFC-rPPG, PURE, MMPD, \
-                             SCAMPS, BP4D+ (Normal and BigSmall preprocessing), UBFC-PHYS, VIPL-HR-V1 and COHFACE.")
+                             SCAMPS, BP4D+ (Normal and BigSmall preprocessing), UBFC-PHYS, VIPL-HR-V1, COHFACE and RLAP.")
         
         if config.TOOLBOX_MODE == "train_and_test" and config.TEST.USE_LAST_EPOCH:
             print("Testing uses last epoch, validation dataset is not required.", end='\n\n')
@@ -327,9 +340,11 @@ if __name__ == "__main__":
             unsupervised_loader = data_loader.VIPLHRv1Loader.VIPLHRv1Loader
         elif config.UNSUPERVISED.DATA.DATASET == "COHFACE":
             unsupervised_loader = data_loader.COHFACELoader.COHFACELoader
+        elif config.UNSUPERVISED.DATA.DATASET == "RLAP":
+            unsupervised_loader = data_loader.RLAPLoader.RLAPLoader
         else:
             raise ValueError("Unsupported dataset! Currently supporting UBFC-rPPG, PURE, MMPD, \
-                             SCAMPS, BP4D+, UBFC-PHYS, VIPL-HR-V1 and COHFACE.")
+                             SCAMPS, BP4D+, UBFC-PHYS, VIPL-HR-V1, COHFACE and RLAP.")
         
         unsupervised_data = unsupervised_loader(
             name="unsupervised",
@@ -337,7 +352,7 @@ if __name__ == "__main__":
             config_data=config.UNSUPERVISED.DATA)
         data_loader_dict["unsupervised"] = DataLoader(
             dataset=unsupervised_data,
-            num_workers=16,
+            num_workers=4,
             batch_size=1,
             shuffle=False,
             worker_init_fn=seed_worker,
