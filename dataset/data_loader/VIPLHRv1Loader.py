@@ -84,16 +84,19 @@ class VIPLHRv1Loader(BaseLoader):
             for sub_dir in sub_dirs:
                 index_scenario = os.path.split(sub_dir)[-1]
 
-                subsub_dirs = glob.glob(sub_dirs[0] + os.sep + "*")
-                # iterate over 4 camera sources (source1: 960x720@25fps, source2&3: 1920x1080@30fps, source4: NIR camera 640x480@30fps)
-                for subsub_dir in subsub_dirs:
-                    index_camera_source = os.path.split(subsub_dir)[-1]
+                if index_scenario != "v2":
+                    continue
+                else:
+                    subsub_dirs = glob.glob(sub_dir + os.sep + "*")
+                    # iterate over 4 camera sources (source1: 960x720@25fps, source2&3: 1920x1080@30fps, source4: NIR camera 640x480@30fps)
+                    for subsub_dir in subsub_dirs:
+                        index_camera_source = os.path.split(subsub_dir)[-1]
 
-                    # take only HUAWEI P9 videos into Account
-                    if index_camera_source == "source2":
-                        dirs.append({"index": '-'.join([subject, index_scenario, index_camera_source]),
-                                     "path": subsub_dir})  # ,
-                                     # "subject": subject})
+                        # take only HUAWEI P9 videos into account
+                        if index_camera_source == "source2":
+                            dirs.append({"index": '-'.join([subject, index_scenario, index_camera_source]),
+                                         "path": subsub_dir})  # ,
+                                         # "subject": subject})
         return dirs
 
     def split_raw_data(self, data_dirs, begin, end):
@@ -110,6 +113,7 @@ class VIPLHRv1Loader(BaseLoader):
 
         return data_dirs_new
 
+    '''
     def preprocess_dataset(self, data_dirs, config_preprocess, begin, end):
         """Preprocesses the raw data."""
 
@@ -134,6 +138,36 @@ class VIPLHRv1Loader(BaseLoader):
             bvps = BaseLoader.resample_ppg(bvps, target_length)
             frames_clips, bvps_clips = self.preprocess(frames, bvps, config_preprocess)
             self.preprocessed_data_len += self.save(frames_clips, bvps_clips, data_dirs[i]["index"])
+    '''
+
+    def preprocess_dataset_subprocess(self, data_dirs, config_preprocess, i, file_list_dict):
+        """Preprocesses the raw data."""
+        filename = os.path.split(data_dirs[i]['path'])[-1]
+        saved_filename = data_dirs[i]['index']
+
+        # Read Frames
+        if 'None' in config_preprocess.DATA_AUG:
+            # Utilize dataset-specific function to read video
+            frames = self.read_video(os.path.join(data_dirs[i]["path"], "video.avi"))
+        elif 'Motion' in config_preprocess.DATA_AUG:
+            # Utilize general function to read video in .npy format
+            frames = self.read_npy_video(
+                glob.glob(os.path.join(data_dirs[i]['path'], '*.npy')))
+        else:
+            raise ValueError(f'Unsupported DATA_AUG specified for {self.dataset_name} dataset! Received {config_preprocess.DATA_AUG}.')
+
+        # Read Labels
+        if config_preprocess.USE_PSUEDO_PPG_LABEL:
+            bvps = self.generate_pos_psuedo_labels(frames, fs=self.config_data.FS)
+        else:
+            bvps = self.read_wave(os.path.join(data_dirs[i]["path"], "wave.csv"))
+
+        target_length = frames.shape[0]
+        bvps = BaseLoader.resample_ppg(bvps, target_length)
+        frames_clips, bvps_clips = self.preprocess(frames, bvps, config_preprocess)
+
+        input_name_list, label_name_list = self.save_multi_process(frames_clips, bvps_clips, saved_filename)
+        file_list_dict[i] = input_name_list
 
     @staticmethod
     def read_video(video_file):

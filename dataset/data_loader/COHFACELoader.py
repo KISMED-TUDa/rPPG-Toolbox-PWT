@@ -61,6 +61,7 @@ class COHFACELoader(BaseLoader):
                              "path": os.path.join(data_dir, str(i))})
         return dirs
 
+    '''
     def preprocess_dataset(self, data_dirs, config_preprocess, begin, end):
         """Preprocesses the raw data."""
 
@@ -85,6 +86,36 @@ class COHFACELoader(BaseLoader):
             bvps = BaseLoader.resample_ppg(bvps, target_length)
             frames_clips, bvps_clips = self.preprocess(frames, bvps, config_preprocess)
             self.preprocessed_data_len += self.save(frames_clips, bvps_clips, data_dirs[i]["index"])
+    '''
+
+    def preprocess_dataset_subprocess(self, data_dirs, config_preprocess, i, file_list_dict):
+        """Preprocesses the raw data."""
+        filename = os.path.split(data_dirs[i]['path'])[-1]
+        saved_filename = data_dirs[i]['index']
+
+        # Read Frames
+        if 'None' in config_preprocess.DATA_AUG:
+            # Utilize dataset-specific function to read video
+            frames = self.read_video(os.path.join(data_dirs[i]["path"], "video.avi"))
+        elif 'Motion' in config_preprocess.DATA_AUG:
+            # Utilize general function to read video in .npy format
+            frames = self.read_npy_video(
+                glob.glob(os.path.join(data_dirs[i]['path'], '*.npy')))
+        else:
+            raise ValueError(f'Unsupported DATA_AUG specified for {self.dataset_name} dataset! Received {config_preprocess.DATA_AUG}.')
+
+        # Read Labels
+        if config_preprocess.USE_PSUEDO_PPG_LABEL:
+            bvps = self.generate_pos_psuedo_labels(frames, fs=self.config_data.FS)
+        else:
+            bvps = self.read_wave(os.path.join(data_dirs[i]["path"], "wave.csv"))
+
+        target_length = frames.shape[0]
+        bvps = BaseLoader.resample_ppg(bvps, target_length)
+        frames_clips, bvps_clips = self.preprocess(frames, bvps, config_preprocess)
+
+        input_name_list, label_name_list = self.save_multi_process(frames_clips, bvps_clips, saved_filename)
+        file_list_dict[i] = input_name_list
 
     @staticmethod
     def read_video(video_file):
