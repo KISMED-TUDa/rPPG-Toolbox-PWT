@@ -38,6 +38,9 @@ def segment_roi(img: np.ndarray, mesh_points: List[np.ndarray], use_convex_hull:
         mask_roi = mask_roi.copy()
         mask_roi = cv2.drawContours(mask_roi, hull, -1, (255, 255, 255), thickness=cv2.FILLED)
 
+        # log_file = open(logging_path + "/logging_" + datetime.datetime.now().strftime('%Y_%m_%d-%H_%M_%S_') + config.INFERENCE.EVALUATION_METHOD + ".log", "w+")
+        # ToDo: log pixel area of all contours for each frame of the video into a logging file  --> used to calc max & min area and to calc mean
+
     output_roi = cv2.copyTo(frame_roi, mask_roi)
 
     return output_roi
