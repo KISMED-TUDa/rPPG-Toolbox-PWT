@@ -104,6 +104,28 @@ def unsupervised_predict(config, data_loader, method_name):
                 SNR_FFT = np.mean(SNR_all)
                 standard_error = np.std(SNR_all) / np.sqrt(num_test_samples)
                 print("FFT SNR (FFT Label): {0} +/- {1} (dB)".format(SNR_FFT, standard_error))
+            elif metric == "Accuracy":
+                # Convert lists to NumPy arrays
+                gt_hr_peak_all = np.array(gt_hr_peak_all)
+                gt_hr_peak_all = np.array(gt_hr_peak_all)
+
+                # Calculate absolute difference between the arrays
+                abs_diff = np.abs(predict_hr_peak_all - gt_hr_peak_all)
+
+                # Calculate the maximum allowed difference (currently: 1 bpm, alternatively: 1% of the corresponding value in gt_hr_peak_all)
+                max_allowed_diff = 1         # 0.01 * gt_hr_peak_all
+
+                # Check which elements have an absolute difference less than the maximum allowed difference
+                correct_predictions = abs_diff <= max_allowed_diff
+
+                # Calculate accuracy by counting the number of correct predictions and dividing by the total samples
+                Accuracy = 100 * np.sum(correct_predictions) / num_test_samples
+                #     # Accuracy = 100*(Summe von predict_hr_peak_all - gt_hr_peak_all < 0.02*gt_hr_peak_all) / num_test_samples
+                #     Accuracy_FFT = np.mean(SNR_all)
+                standard_error = np.std(Accuracy) / np.sqrt(num_test_samples)
+                print("FFT Accuracy (FFT Label): {0} +/- {1} (dB)".format(Accuracy, standard_error))
+
+            # ToDo: regressions konfusionsmatrix erstellen: https://medium.com/@dave.cote.msc/experimenting-confusion-matrix-for-regression-a-powerfull-model-analysis-tool-7c288d99d437
             else:
                 raise ValueError("Wrong Test Metric Type")
     elif config.INFERENCE.EVALUATION_METHOD == "FFT":
@@ -133,6 +155,29 @@ def unsupervised_predict(config, data_loader, method_name):
                 SNR_PEAK = np.mean(SNR_all)
                 standard_error = np.std(SNR_all) / np.sqrt(num_test_samples)
                 print("FFT SNR (FFT Label): {0} +/- {1} (dB)".format(SNR_PEAK, standard_error))
+            elif metric == "Accuracy":
+                # Convert lists to NumPy arrays
+                predict_hr_fft_all = np.array(predict_hr_fft_all)
+                gt_hr_fft_all = np.array(gt_hr_fft_all)
+
+                # Calculate absolute difference between the arrays
+                abs_diff = np.abs(predict_hr_fft_all - gt_hr_fft_all)
+
+                # Calculate the maximum allowed difference (currently: 2 bpm like the accuracy of a fingerclip PPG)
+                max_allowed_diff = 2
+
+                # Check which elements have an absolute difference less than the maximum allowed difference
+                correct_predictions = abs_diff <= max_allowed_diff
+
+                # Calculate accuracy by counting the number of correct predictions and dividing by the total samples
+                Accuracy = 100 * np.sum(correct_predictions) / num_test_samples
+                #     # Accuracy = 100*(Summe von predict_hr_fft_all - gt_hr_fft_all < 0.02*gt_hr_fft_all) / num_test_samples
+                #     Accuracy_FFT = np.mean(SNR_all)
+                # standard_error = 100* np.std(Accuracy) / np.sqrt(num_test_samples)
+                print("FFT Accuracy (FFT Label): {0}".format(Accuracy))
+
+            # ToDo: regressions konfusionsmatrix erstellen: https://medium.com/@dave.cote.msc/experimenting-confusion-matrix-for-regression-a-powerfull-model-analysis-tool-7c288d99d437
+
             else:
                 raise ValueError("Wrong Test Metric Type")
     else:
