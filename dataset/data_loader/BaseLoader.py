@@ -10,6 +10,8 @@ import glob
 import os
 import re
 from math import ceil
+
+import scipy.spatial.distance
 from scipy import signal
 from scipy import sparse
 from unsupervised_methods.methods import POS_WANG
@@ -230,7 +232,8 @@ class BaseLoader(Dataset):
                                        config_preprocess.ROI_SEGMENTATION.DO_SEGMENTATION,
                                        config_preprocess.ROI_SEGMENTATION.THRESHOLD,
                                        config_preprocess.ROI_SEGMENTATION.USE_CONVEX_HULL,
-                                       config_preprocess.ROI_SEGMENTATION.CONSTRAIN_ROI)
+                                       config_preprocess.ROI_SEGMENTATION.CONSTRAIN_ROI,
+                                       config_preprocess.ROI_SEGMENTATION.USE_OUTSIDE_ROI)
 
         # resize frames and crop for face region
         frames = self.crop_face_resize(
@@ -274,7 +277,7 @@ class BaseLoader(Dataset):
 
         return frames_clips, bvps_clips
 
-    def calculate_roi(self, results, image, threshold=90, constrain_roi=True):
+    def calculate_roi_old(self, results, image, threshold=90, constrain_roi=True):
         """
          Calculates and extracts the region of interest (ROI) from an input image based on facial landmarks and their angles with respect to camera and surface normals.
          It uses the results from facial landmark detection to identify and extract triangles from the face mesh that fall below the specified angle threshold.
@@ -291,9 +294,11 @@ class BaseLoader(Dataset):
 
         # define landmarks to be plotted
         if constrain_roi:
-            optimal_rois = roi_segmentation.DEFINITION_FACEMASK.FOREHEAD_TESSELATION_LARGE \
-                           + roi_segmentation.DEFINITION_FACEMASK.LEFT_CHEEK_TESSELATION_LARGE \
-                           + roi_segmentation.DEFINITION_FACEMASK.RIGHT_CHEEK_TESSELATION_LARGE
+            optimal_rois = roi_segmentation.DEFINITION_FACEMASK.LEFT_CHEEK_TESSELATION_LARGE \
+                            + roi_segmentation.DEFINITION_FACEMASK.RIGHT_CHEEK_TESSELATION_LARGE
+                           #roi_segmentation.DEFINITION_FACEMASK.FOREHEAD_TESSELATION_LARGE  \
+                           # + roi_segmentation.DEFINITION_FACEMASK.LEFT_CHEEK_TESSELATION_LARGE \
+                           # + roi_segmentation.DEFINITION_FACEMASK.RIGHT_CHEEK_TESSELATION_LARGE
 
         for face_landmarks in results.multi_face_landmarks:
 
@@ -324,7 +329,7 @@ class BaseLoader(Dataset):
                         mesh_points_apaptive_roi_.append(triangle_coords)
         return mesh_points_apaptive_roi_
 
-    def roi_segmentation_for_video(self, video_frames, use_roi_segmentation, threshold=90, use_convex_hull=True, constrain_roi=True):
+    def roi_segmentation_for_video_old(self, video_frames, use_roi_segmentation, threshold=90, use_convex_hull=True, constrain_roi=True):
 
         if use_roi_segmentation:
 
@@ -373,6 +378,246 @@ class BaseLoader(Dataset):
                             frames.append(np.asarray(frame, dtype=np.uint8))
                         except cv2.error:
                             pass
+
+            # resize all roi frames to same shape
+            for idx in range(len(frames)):
+                frames[idx] = cv2.resize(frames[idx], (max_dim_roi, max_dim_roi))
+
+            frames = np.asarray(frames, dtype=np.uint8)
+
+            return frames
+        else:
+            return video_frames
+
+    def check_acceptance(self, index, angle_degrees, threshold=90):
+        """
+        This function checks whether a triangle with a given angle is accepted based on its previous angle data.
+        It calculates the mean angle and standard deviation of its previous angle values and checks if:
+        1. current angle is within one standard deviation of the mean
+        2. the triangle has appeared during the last 5 frames
+        3. the mean angle during the last 5 frames is below the angle threshold + one standard deviation of the mean (last_5_mean < threshold + last_5_std_dev)
+
+        :param index: (int): The index corresponding to the triangle in the DEFINITION_FACEMASK.FACE_MESH_TESSELATION
+        :param angle_degrees: (float): The surface reflectance angle of the current triangle in degrees.
+        :param threshold:(int, optional, default=90): The angle threshold in degrees. Triangles with angles below this threshold will be included in the adaptive ROI.
+        :return: bool: True if the triangle is accepted, False otherwise.
+        """
+        global angle_history
+        angle_history[index] = np.roll(angle_history[index], shift=-1)  # Shift the values to make room for the new angle
+        angle_history[index][-1] = angle_degrees  # Store the new angle in the array
+        mean_angle = np.mean(angle_history[index])
+        std_dev = np.std(angle_history[index])
+
+        # Check if there are no zero values in angle_history[index] (occurs at first initialization)
+        # and count how many past angle values are less than threshold + std_dev
+        # ToDo: verbessere past_appearance, sodass es die gleiche boolsche bedingung hat, wie die if-Abfrage zum Akzeptieren der Dreiecke
+        if np.count_nonzero(angle_history[index] == 0) == 0:
+            past_appearance = angle_history[index] < threshold + std_dev
+            # or (np.count_nonzero(angle_history[index][:-1] == 0) == 0 and np.mean(angle_history[index][:-1]) < threshold + np.std(angle_history[index][:-1]))
+            past_appearance_count = np.count_nonzero(past_appearance)
+        else:
+            past_appearance_count = 0
+
+        # accept triangle:
+        # if its angle is below threshold,
+        # or if it already appeared during the last 5 frames,
+        # or if its mean angle during the last 5 frames is below threshold
+        if angle_degrees < threshold \
+                or past_appearance_count > 0 \
+                or (np.count_nonzero(angle_history[index] == 0) == 0 and mean_angle < threshold + std_dev):  # \
+            # or np.count_nonzero(was_visible[index]) > 0:
+            # was_visible[index] = np.roll(was_visible[index], shift=-1)
+            # was_visible[index][-1] = True
+
+            return True
+        return False
+
+    def calculate_roi(self, results, image, threshold=90, constrain_roi=True, use_convex_hull=True, use_outside_roi=False):
+        """
+         Calculates and extracts the region of interest (ROI) from an input image based on facial landmarks and their angles with respect to camera and surface normals.
+         It uses the results from facial landmark detection to identify and extract triangles from the face mesh that fall below the specified angle threshold.
+         The extracted triangles are returned as a list of sets of coordinates, which define the adaptive ROI.
+         Additionally the function returns the binary mask images of the optimal ROI and the ROI outside of the optimal region.
+
+        :param results: The results of facial landmark detection by mediapipe, containing facial landmarks detected in the image.
+        :param image: The input image the facial landmarks were detected in and the adaptive ROI is to be calculated for.
+        :param threshold:(int, optional, default=90): The angle threshold in degrees. Triangles with angles below this threshold will be included in the adaptive ROI.
+        :param constrain_roi:(bool, optional, default=True): A flag indicating whether to constrain the adaptive ROI to a predefined set of optimal regions.
+                                        If set to True, only triangles within the predefined regions will be considered.
+        :param use_outside_roi: (bool, optional, default=False): If True, calculate ROIs outside of the constrained ROI.
+        :return: tuple: A tuple containing the following elements:
+                - mesh_points_optimal_roi_ (list): List of sets of coordinates defining triangles within the optimal ROI that meet the angle threshold criteria and,
+                                                   if flag is set, are part of the optimal ROI.
+                - mesh_points_outside_roi (list): List of coordinates defining triangles outside of the optimal ROI.
+                - mask_optimal_roi (numpy.ndarray): A binary image mask indicating the optimal ROI.
+                - mask_outside_roi (numpy.ndarray): A binary image mask indicating the area outside the optimal ROI.
+
+        A list of sets of coordinates representing the triangles that meet the angle threshold criteria and, if flag is set, are part of the adaptive ROI.
+        """
+        mesh_points_optimal_roi_ = []
+        mesh_points_outside_roi_ = []
+
+        img_h, img_w = image.shape[:2]
+        mask_optimal_roi = np.zeros((img_h, img_w), dtype=np.uint8)
+        mask_outside_roi = np.zeros((img_h, img_w), dtype=np.uint8)
+        angle_degrees_dict = {}
+
+        # define landmarks to be plotted
+        if constrain_roi:
+            optimal_rois = roi_segmentation.DEFINITION_FACEMASK.FOREHEAD_TESSELATION_LARGE#  \
+                           # + roi_segmentation.DEFINITION_FACEMASK.LEFT_CHEEK_TESSELATION_LARGE \
+                           # + roi_segmentation.DEFINITION_FACEMASK.RIGHT_CHEEK_TESSELATION_LARGE
+
+        for face_landmarks in results.multi_face_landmarks:
+
+            # Extract landmarks' xyz-coordinates from the detected face
+            landmark_coords_xyz = []
+            for landmark in face_landmarks.landmark:
+                x, y, z = landmark.x, landmark.y, landmark.z
+                landmark_coords_xyz.append([x, y, z])
+
+            # Calculate angles between camera and surface normal vectors for whole face mesh tessellation and draw an angle heatmap
+            for index, triangle in enumerate(roi_segmentation.DEFINITION_FACEMASK.FACE_MESH_TESSELATION):
+                if constrain_roi:
+                    if triangle in optimal_rois:
+                        # calculate reflectance angle in degree
+                        angle_degrees = helper_functions.calculate_angle_heatmap(landmark_coords_xyz, triangle)
+
+                        if self.check_acceptance(index, angle_degrees, threshold):  # angle_degrees < threshold:
+                            # Extract the coordinates of the three landmarks of the triangle
+                            triangle_coords = helper_functions.get_triangle_coords(image, landmark_coords_xyz, triangle)
+                            mesh_points_optimal_roi_.append(triangle_coords)
+
+                            cv2.fillConvexPoly(mask_optimal_roi, triangle_coords, (255, 255, 255, cv2.LINE_AA))
+                    else:
+                        # calculate all reflectance angles outside of optimal roi
+                        angle_degrees = helper_functions.calculate_angle_heatmap(landmark_coords_xyz, triangle)
+                        angle_degrees_dict.update({str(triangle): angle_degrees})
+
+                else:
+                    # calculate reflectance angle in degree
+                    angle_degrees = helper_functions.calculate_angle_heatmap(landmark_coords_xyz, triangle)
+
+                    if angle_degrees < threshold:
+                        # Extract the coordinates of the three landmarks of the triangle
+                        triangle_coords = helper_functions.get_triangle_coords(image, landmark_coords_xyz, triangle)
+                        mesh_points_optimal_roi_.append(triangle_coords)
+
+                        cv2.fillConvexPoly(mask_optimal_roi, triangle_coords, (255, 255, 255, cv2.LINE_AA))
+
+            if use_convex_hull:
+                mask_optimal_roi = helper.apply_convex_hull(mask_optimal_roi)
+
+                if not use_outside_roi:  # else this is done later
+                    # mask out eyes from isolated face image
+                    mask_eyes = helper.mask_eyes_out(mask_optimal_roi, results)
+                    mask_optimal_roi = cv2.copyTo(mask_optimal_roi, mask_eyes)
+
+            # calculate triangles with lowest angles and nearest distance to the triangle in optimal ROI with lowest angle
+            if constrain_roi and use_outside_roi:
+                # sort angle_degrees by ascending angles
+                angles_list = sorted(list(angle_degrees_dict.values()))
+
+                # get triangle coordinates of the triangles sorted by lowest angles
+                low_angle_triangle_coords = []
+                for low_angle in angles_list:
+                    index = roi_segmentation.DEFINITION_FACEMASK.FACE_MESH_TESSELATION.index(helper_functions.get_triangle_indices_from_angle(angle_degrees_dict, low_angle))
+                    if self.check_acceptance(index, low_angle, threshold):  # low_angle < threshold:
+                        low_angle_triangle_coords.append(helper_functions.get_triangle_coords(image, landmark_coords_xyz,
+                                                                                              helper_functions.get_triangle_indices_from_angle(
+                                                                                                  angle_degrees_dict, low_angle)))
+
+                # calculate target centroid in between visible optimal ROIs, weighted by the areas of optimal ROIs
+                target_coords = helper.calc_centroid_between_roi(mask_optimal_roi)
+
+                # Sort the triangles based on their nearest Euclidean distance to the target centroid in between visible optimal ROIs
+                sorted_triangles = sorted(low_angle_triangle_coords, key=lambda triangle: scipy.spatial.distance.euclidean(target_coords, np.mean(triangle, axis=0)))
+
+                # calculate pixel area of optimal_roi
+                optimal_roi_area = helper.count_pixel_area(mask_optimal_roi)
+                outside_roi_area = 0
+
+                for nearest_triangle in sorted_triangles:
+                    if outside_roi_area <= optimal_roi_area != 0:
+                        mesh_points_outside_roi_.append(nearest_triangle)
+
+                        # fill a black mask with white triangles of low angles
+                        mask_outside_roi = cv2.fillConvexPoly(mask_outside_roi, nearest_triangle, (255, 255, 255, cv2.LINE_AA))
+
+                        if use_convex_hull:
+                            mask_outside_roi = helper.apply_convex_hull(mask_outside_roi)
+
+                            # mask out eyes from isolated face image
+                            mask_eyes = helper.mask_eyes_out(mask_outside_roi, results)
+                            mask_outside_roi = cv2.copyTo(mask_outside_roi, mask_eyes)
+
+                            # mask out mask_optimal_roi from mask_outside_roi, so that the masks don't overlap after applying convexHull
+                            inv_mask_optimal_roi = cv2.bitwise_not(mask_optimal_roi)
+                            mask_outside_roi = cv2.bitwise_and(mask_outside_roi, inv_mask_optimal_roi)
+
+                        # Count the non-black pixels
+                        outside_roi_area = helper.count_pixel_area(mask_outside_roi)
+                    else:
+                        break
+
+        return mesh_points_optimal_roi_, mesh_points_outside_roi_, mask_optimal_roi, mask_outside_roi
+
+    def roi_segmentation_for_video(self, video_frames, use_roi_segmentation, threshold=90, use_convex_hull=True, constrain_roi=True, use_outside_roi=False):
+
+        if use_roi_segmentation:
+
+            mp_face_mesh = mp.solutions.face_mesh
+
+            frames = list()
+            max_dim_roi = 0
+            global angle_history
+            angle_history = [np.zeros(5) for _ in range(len(roi_segmentation.DEFINITION_FACEMASK.FACE_MESH_TESSELATION))]
+
+            with mp_face_mesh.FaceMesh(
+                    max_num_faces=1,
+                    refine_landmarks=True,
+                    min_detection_confidence=0.5,
+                    min_tracking_confidence=0.5
+            ) as face_mesh:
+                for rgb_frame in video_frames:
+                    rgb_frame = cv2.flip(rgb_frame, 1)
+
+                    results = face_mesh.process(rgb_frame)
+
+                    frame = cv2.cvtColor(np.array(rgb_frame), cv2.COLOR_RGB2BGR)
+
+                    if results.multi_face_landmarks:
+                        # define mesh points of each ROI if mesh triangles are below threshold
+                        mesh_points_optimal_roi, mesh_points_outside_roi, mask_roi_optimal, mask_roi_outside = self.calculate_roi(results, frame,
+                                                                                                                              threshold=threshold,
+                                                                                                                              constrain_roi=constrain_roi,
+                                                                                                                              use_convex_hull=use_convex_hull,
+                                                                                                                              use_outside_roi=use_outside_roi)
+                        if use_outside_roi:
+                            mask_roi = mask_roi_optimal  # mask_roi_outside  # mask_roi_optimal + mask_roi_outside
+                        else:
+                            mask_roi = mask_roi_optimal
+
+                        output_roi_face = cv2.copyTo(frame, mask_roi)
+
+                        # crop frame to square bounding box, centered at centroid between all ROIs
+                        bb_offset = 10
+                        x_min, y_min, x_max, y_max = helper.get_bounding_box_coordinates(output_roi_face, results)
+                        distance_max = max(x_max - x_min, y_max - y_min)
+                        output_roi_face = output_roi_face[
+                                          int((y_min + y_max - distance_max) / 2 - bb_offset):int((y_min + y_max + distance_max) / 2 + bb_offset),
+                                          int((x_min + x_max - distance_max) / 2 - bb_offset):int((x_min + x_max + distance_max) / 2 + bb_offset)]
+                    try:
+                        frame = cv2.cvtColor(output_roi_face, cv2.COLOR_BGR2RGB)
+
+                        # find maximum shape of all frames
+                        max_dim_frame = max(frame.shape[0], frame.shape[1])
+                        if max_dim_frame > max_dim_roi:
+                            max_dim_roi = max_dim_frame
+
+                        frames.append(np.asarray(frame, dtype=np.uint8))
+                    except cv2.error:
+                        pass
 
             # resize all roi frames to same shape
             for idx in range(len(frames)):
@@ -538,7 +783,7 @@ class BaseLoader(Dataset):
             count += 1
         return input_path_name_list, label_path_name_list
 
-    def multi_process_manager(self, data_dirs, config_preprocess, multi_process_quota=8):
+    def multi_process_manager(self, data_dirs, config_preprocess, multi_process_quota=2):
         """Allocate dataset preprocessing across multiple processes.
 
         Args:

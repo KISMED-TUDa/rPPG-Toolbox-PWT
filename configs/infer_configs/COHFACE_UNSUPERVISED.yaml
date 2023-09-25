@@ -24,6 +24,7 @@ UNSUPERVISED:
         THRESHOLD: 90
         USE_CONVEX_HULL: True
         CONSTRAIN_ROI: True
+        USE_OUTSIDE_ROI: False
       CROP_FACE:
         DO_CROP_FACE: False  # True
         USE_LARGE_FACE_BOX: False  # True

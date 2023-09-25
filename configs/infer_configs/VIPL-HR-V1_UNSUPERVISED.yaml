@@ -20,14 +20,15 @@ UNSUPERVISED:
       DO_CHUNK: False
       CHUNK_LENGTH: 180
       ROI_SEGMENTATION:
-        DO_SEGMENTATION: True
-        THRESHOLD: 90
-        USE_CONVEX_HULL: True
-        CONSTRAIN_ROI: True
+        DO_SEGMENTATION: True  # True
+        THRESHOLD: 45
+        USE_CONVEX_HULL: False  # True
+        CONSTRAIN_ROI: False  # True
+        USE_OUTSIDE_ROI: True
       CROP_FACE:
-        DO_CROP_FACE: False  # True
-        USE_LARGE_FACE_BOX: False  # True
-        LARGE_BOX_COEF: 1.0 # 1.5
+        DO_CROP_FACE: False  # False  # True
+        USE_LARGE_FACE_BOX: False  # False  # True
+        LARGE_BOX_COEF: 1.0  # 1.0 # 1.5
         DETECTION:
           DO_DYNAMIC_DETECTION: False
           DYNAMIC_DETECTION_FREQUENCY : 30

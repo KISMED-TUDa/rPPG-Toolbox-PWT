@@ -298,7 +298,7 @@ def calc_centroid_between_roi(img: np.ndarray) -> (int, int):
             cX, cY = 0, 0
 
         centroid_list.append([cX, cY])
-        contour_area_list.append(M["m00"])
+        contour_area_list.append(M["m00"]**2)
 
         # cv2.circle(img, (cX, cY), 1, (0, 255, 0), -1)
 

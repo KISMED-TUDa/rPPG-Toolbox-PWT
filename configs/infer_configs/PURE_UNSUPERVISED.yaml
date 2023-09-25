@@ -9,7 +9,7 @@ UNSUPERVISED:
     DO_PREPROCESS: True               # if first time, should be true
     DATA_FORMAT: NDHWC
     DATA_PATH: "g:/Uni/_Master/Semester 9 (Master Thesis)/Datasets/PURE/data/"                     # Raw dataset path, need to be updated
-    CACHED_PATH: "g:/rppg_toolbox/PreprocessedData/PURE_motion_scenario/"             # Processed dataset save path, need to be updated
+    CACHED_PATH: "g:/rppg_toolbox/PreprocessedData/PURE_motion_scenario/mask_roi_both_cheeks/"             # Processed dataset save path, need to be updated
     EXP_DATA_NAME: ""
     BEGIN: 0.0
     END: 1.0
@@ -24,6 +24,7 @@ UNSUPERVISED:
         THRESHOLD: 90
         USE_CONVEX_HULL: True
         CONSTRAIN_ROI: True
+        USE_OUTSIDE_ROI: False
       CROP_FACE:
         DO_CROP_FACE: False  # False  # True
         USE_LARGE_FACE_BOX: False  # False  # True
@@ -38,5 +39,5 @@ UNSUPERVISED:
 INFERENCE:
   EVALUATION_METHOD: "FFT"        # "FFT" or "peak detection"
   EVALUATION_WINDOW:
-    USE_SMALLER_WINDOW: True        # Change this if you'd like an evaluation window smaller than the test video length
-    WINDOW_SIZE: 10        # In seconds
+    USE_SMALLER_WINDOW: False        # Change this if you'd like an evaluation window smaller than the test video length
+    WINDOW_SIZE: 15        # In seconds

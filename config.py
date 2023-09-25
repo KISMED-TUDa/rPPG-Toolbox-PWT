@@ -72,6 +72,7 @@ _C.TRAIN.DATA.PREPROCESS.ROI_SEGMENTATION.DO_SEGMENTATION = True
 _C.TRAIN.DATA.PREPROCESS.ROI_SEGMENTATION.THRESHOLD = 90
 _C.TRAIN.DATA.PREPROCESS.ROI_SEGMENTATION.USE_CONVEX_HULL = True
 _C.TRAIN.DATA.PREPROCESS.ROI_SEGMENTATION.CONSTRAIN_ROI = True
+_C.TRAIN.DATA.PREPROCESS.ROI_SEGMENTATION.USE_OUTSIDE_ROI = False
 _C.TRAIN.DATA.PREPROCESS.CROP_FACE = CN()
 _C.TRAIN.DATA.PREPROCESS.CROP_FACE.DO_CROP_FACE = True
 _C.TRAIN.DATA.PREPROCESS.CROP_FACE.USE_LARGE_FACE_BOX = True
@@ -137,6 +138,7 @@ _C.VALID.DATA.PREPROCESS.ROI_SEGMENTATION.DO_SEGMENTATION = True
 _C.VALID.DATA.PREPROCESS.ROI_SEGMENTATION.THRESHOLD = 90
 _C.VALID.DATA.PREPROCESS.ROI_SEGMENTATION.USE_CONVEX_HULL = True
 _C.VALID.DATA.PREPROCESS.ROI_SEGMENTATION.CONSTRAIN_ROI = True
+_C.VALID.DATA.PREPROCESS.ROI_SEGMENTATION.USE_OUTSIDE_ROI = False
 _C.VALID.DATA.PREPROCESS.CROP_FACE = CN()
 _C.VALID.DATA.PREPROCESS.CROP_FACE.DO_CROP_FACE = True
 _C.VALID.DATA.PREPROCESS.CROP_FACE.USE_LARGE_FACE_BOX = True
@@ -206,6 +208,7 @@ _C.TEST.DATA.PREPROCESS.ROI_SEGMENTATION.DO_SEGMENTATION = True
 _C.TEST.DATA.PREPROCESS.ROI_SEGMENTATION.THRESHOLD = 90
 _C.TEST.DATA.PREPROCESS.ROI_SEGMENTATION.USE_CONVEX_HULL = True
 _C.TEST.DATA.PREPROCESS.ROI_SEGMENTATION.CONSTRAIN_ROI = True
+_C.TEST.DATA.PREPROCESS.ROI_SEGMENTATION.USE_OUTSIDE_ROI = False
 _C.TEST.DATA.PREPROCESS.CROP_FACE = CN()
 _C.TEST.DATA.PREPROCESS.CROP_FACE.DO_CROP_FACE = True
 _C.TEST.DATA.PREPROCESS.CROP_FACE.USE_LARGE_FACE_BOX = True
@@ -274,6 +277,7 @@ _C.UNSUPERVISED.DATA.PREPROCESS.ROI_SEGMENTATION.DO_SEGMENTATION = True
 _C.UNSUPERVISED.DATA.PREPROCESS.ROI_SEGMENTATION.THRESHOLD = 90
 _C.UNSUPERVISED.DATA.PREPROCESS.ROI_SEGMENTATION.USE_CONVEX_HULL = True
 _C.UNSUPERVISED.DATA.PREPROCESS.ROI_SEGMENTATION.CONSTRAIN_ROI = True
+_C.UNSUPERVISED.DATA.PREPROCESS.ROI_SEGMENTATION.USE_OUTSIDE_ROI = False
 _C.UNSUPERVISED.DATA.PREPROCESS.CROP_FACE = CN()
 _C.UNSUPERVISED.DATA.PREPROCESS.CROP_FACE.DO_CROP_FACE = True
 _C.UNSUPERVISED.DATA.PREPROCESS.CROP_FACE.USE_LARGE_FACE_BOX = True
@@ -398,6 +402,7 @@ def update_config(config, args):
                                               "Angle_threshold{0}".format(config.TRAIN.DATA.PREPROCESS.ROI_SEGMENTATION.THRESHOLD),
                                               "Use_convex_hull{0}".format(config.TRAIN.DATA.PREPROCESS.ROI_SEGMENTATION.USE_CONVEX_HULL),
                                               "Constrain_roi{0}".format(config.TRAIN.DATA.PREPROCESS.ROI_SEGMENTATION.CONSTRAIN_ROI),
+                                              "Outside_roi{0}".format(config.TRAIN.DATA.PREPROCESS.ROI_SEGMENTATION.USE_OUTSIDE_ROI),
                                               # "Crop_face{0}".format(config.TRAIN.DATA.PREPROCESS.CROP_FACE.DO_CROP_FACE),
                                               # "Large_box{0}".format(config.TRAIN.DATA.PREPROCESS.CROP_FACE.USE_LARGE_FACE_BOX),
                                               # "Large_size{0}".format(config.TRAIN.DATA.PREPROCESS.CROP_FACE.LARGE_BOX_COEF),
@@ -443,6 +448,7 @@ def update_config(config, args):
                                                 "Angle_threshold{0}".format(config.VALID.DATA.PREPROCESS.ROI_SEGMENTATION.THRESHOLD),
                                                 "Use_convex_hull{0}".format(config.VALID.DATA.PREPROCESS.ROI_SEGMENTATION.USE_CONVEX_HULL),
                                                 "Constrain_roi{0}".format(config.VALID.DATA.PREPROCESS.ROI_SEGMENTATION.CONSTRAIN_ROI),
+                                                "Outside_roi{0}".format(config.VALID.DATA.PREPROCESS.ROI_SEGMENTATION.USE_OUTSIDE_ROI),
                                                 # "Crop_face{0}".format(config.VALID.DATA.PREPROCESS.CROP_FACE.DO_CROP_FACE),
                                                 # "Large_box{0}".format(config.VALID.DATA.PREPROCESS.CROP_FACE.USE_LARGE_FACE_BOX),
                                                 # "Large_size{0}".format(config.VALID.DATA.PREPROCESS.CROP_FACE.LARGE_BOX_COEF),
@@ -489,6 +495,7 @@ def update_config(config, args):
                                               "Angle_threshold{0}".format(config.TEST.DATA.PREPROCESS.ROI_SEGMENTATION.THRESHOLD),
                                               "Use_convex_hull{0}".format(config.TEST.DATA.PREPROCESS.ROI_SEGMENTATION.USE_CONVEX_HULL),
                                               "Constrain_roi{0}".format(config.TEST.DATA.PREPROCESS.ROI_SEGMENTATION.CONSTRAIN_ROI),
+                                              "Outside_roi{0}".format(config.TEST.DATA.PREPROCESS.ROI_SEGMENTATION.USE_OUTSIDE_ROI),
                                               # "Crop_face{0}".format(config.TEST.DATA.PREPROCESS.CROP_FACE.DO_CROP_FACE),
                                               # "Large_box{0}".format(config.TEST.DATA.PREPROCESS.CROP_FACE.USE_LARGE_FACE_BOX),
                                               # "Large_size{0}".format(config.TEST.DATA.PREPROCESS.CROP_FACE.LARGE_BOX_COEF),
@@ -567,6 +574,7 @@ def update_config(config, args):
                                                     "Angle_threshold{0}".format(config.UNSUPERVISED.DATA.PREPROCESS.ROI_SEGMENTATION.THRESHOLD),
                                                     "Use_convex_hull{0}".format(config.UNSUPERVISED.DATA.PREPROCESS.ROI_SEGMENTATION.USE_CONVEX_HULL),
                                                     "Constrain_roi{0}".format(config.UNSUPERVISED.DATA.PREPROCESS.ROI_SEGMENTATION.CONSTRAIN_ROI),
+                                                    "Outside_roi{0}".format(config.UNSUPERVISED.DATA.PREPROCESS.ROI_SEGMENTATION.USE_OUTSIDE_ROI),
                                                     # "Crop_face{0}".format(config.UNSUPERVISED.DATA.PREPROCESS.CROP_FACE.DO_CROP_FACE),
                                                     # "Large_box{0}".format(config.UNSUPERVISED.DATA.PREPROCESS.CROP_FACE.USE_LARGE_FACE_BOX),
                                                     # "Large_size{0}".format(config.UNSUPERVISED.DATA.PREPROCESS.CROP_FACE.LARGE_BOX_COEF),
