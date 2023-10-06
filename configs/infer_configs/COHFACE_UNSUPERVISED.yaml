@@ -22,6 +22,7 @@ UNSUPERVISED:
       ROI_SEGMENTATION:
         DO_SEGMENTATION: True
         THRESHOLD: 90
+        ROI_MODE: "optimal_roi"
         USE_CONVEX_HULL: True
         CONSTRAIN_ROI: True
         USE_OUTSIDE_ROI: False
