@@ -212,8 +212,8 @@ def resize_roi(img: np.ndarray, mesh_points: List[np.ndarray]) -> np.ndarray:
 
     return resized_image
 
-
-@jit(nopython=True)
+# ToDo: find out, why jit doesn't work
+# @jit(nopython=True)
 def check_acceptance(index, angle_degrees, angle_history, threshold=90):
     """
     Check whether a triangle with a given angle is accepted based on its previous angle data.
@@ -603,7 +603,7 @@ def get_bounding_box_coordinates_mesh_points(mesh_points):
     return x_min, y_min, x_max, y_max
 
 
-# @jit(nopython=True)
+@jit(nopython=True)
 def get_bounding_box_coordinates_filtered(img: np.ndarray, landmark_coords_xyz_history: np.ndarray, video_frame_count) -> (int, int, int, int):
     """
     Processes an image and returns the minimum and maximum x and y coordinates of the bounding box of detected face.
