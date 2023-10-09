@@ -70,6 +70,7 @@ _C.TRAIN.DATA.PREPROCESS.CHUNK_LENGTH = 180
 _C.TRAIN.DATA.PREPROCESS.ROI_SEGMENTATION = CN()
 _C.TRAIN.DATA.PREPROCESS.ROI_SEGMENTATION.DO_SEGMENTATION = True
 _C.TRAIN.DATA.PREPROCESS.ROI_SEGMENTATION.THRESHOLD = 90
+_C.TRAIN.DATA.PREPROCESS.ROI_SEGMENTATION.ROI_MODE = "optimal_roi"
 _C.TRAIN.DATA.PREPROCESS.ROI_SEGMENTATION.USE_CONVEX_HULL = True
 _C.TRAIN.DATA.PREPROCESS.ROI_SEGMENTATION.CONSTRAIN_ROI = True
 _C.TRAIN.DATA.PREPROCESS.ROI_SEGMENTATION.USE_OUTSIDE_ROI = False
@@ -136,6 +137,7 @@ _C.VALID.DATA.PREPROCESS.CHUNK_LENGTH = 180
 _C.VALID.DATA.PREPROCESS.ROI_SEGMENTATION = CN()
 _C.VALID.DATA.PREPROCESS.ROI_SEGMENTATION.DO_SEGMENTATION = True
 _C.VALID.DATA.PREPROCESS.ROI_SEGMENTATION.THRESHOLD = 90
+_C.VALID.DATA.PREPROCESS.ROI_SEGMENTATION.ROI_MODE = "optimal_roi"
 _C.VALID.DATA.PREPROCESS.ROI_SEGMENTATION.USE_CONVEX_HULL = True
 _C.VALID.DATA.PREPROCESS.ROI_SEGMENTATION.CONSTRAIN_ROI = True
 _C.VALID.DATA.PREPROCESS.ROI_SEGMENTATION.USE_OUTSIDE_ROI = False
@@ -206,6 +208,7 @@ _C.TEST.DATA.PREPROCESS.CHUNK_LENGTH = 180
 _C.TEST.DATA.PREPROCESS.ROI_SEGMENTATION = CN()
 _C.TEST.DATA.PREPROCESS.ROI_SEGMENTATION.DO_SEGMENTATION = True
 _C.TEST.DATA.PREPROCESS.ROI_SEGMENTATION.THRESHOLD = 90
+_C.TEST.DATA.PREPROCESS.ROI_SEGMENTATION.ROI_MODE = "optimal_roi"
 _C.TEST.DATA.PREPROCESS.ROI_SEGMENTATION.USE_CONVEX_HULL = True
 _C.TEST.DATA.PREPROCESS.ROI_SEGMENTATION.CONSTRAIN_ROI = True
 _C.TEST.DATA.PREPROCESS.ROI_SEGMENTATION.USE_OUTSIDE_ROI = False
@@ -275,6 +278,7 @@ _C.UNSUPERVISED.DATA.PREPROCESS.CHUNK_LENGTH = 180
 _C.UNSUPERVISED.DATA.PREPROCESS.ROI_SEGMENTATION = CN()
 _C.UNSUPERVISED.DATA.PREPROCESS.ROI_SEGMENTATION.DO_SEGMENTATION = True
 _C.UNSUPERVISED.DATA.PREPROCESS.ROI_SEGMENTATION.THRESHOLD = 90
+_C.UNSUPERVISED.DATA.PREPROCESS.ROI_SEGMENTATION.ROI_MODE = "optimal_roi"
 _C.UNSUPERVISED.DATA.PREPROCESS.ROI_SEGMENTATION.USE_CONVEX_HULL = True
 _C.UNSUPERVISED.DATA.PREPROCESS.ROI_SEGMENTATION.CONSTRAIN_ROI = True
 _C.UNSUPERVISED.DATA.PREPROCESS.ROI_SEGMENTATION.USE_OUTSIDE_ROI = False
@@ -400,6 +404,7 @@ def update_config(config, args):
                                               "LabelType{0}".format(config.TRAIN.DATA.PREPROCESS.LABEL_TYPE),
                                               "ROI_segmentation{0}".format(config.TRAIN.DATA.PREPROCESS.ROI_SEGMENTATION.DO_SEGMENTATION),
                                               "Angle_threshold{0}".format(config.TRAIN.DATA.PREPROCESS.ROI_SEGMENTATION.THRESHOLD),
+                                              "ROI_mode-{0}".format(config.TRAIN.DATA.PREPROCESS.ROI_SEGMENTATION.ROI_MODE),
                                               "Use_convex_hull{0}".format(config.TRAIN.DATA.PREPROCESS.ROI_SEGMENTATION.USE_CONVEX_HULL),
                                               "Constrain_roi{0}".format(config.TRAIN.DATA.PREPROCESS.ROI_SEGMENTATION.CONSTRAIN_ROI),
                                               "Outside_roi{0}".format(config.TRAIN.DATA.PREPROCESS.ROI_SEGMENTATION.USE_OUTSIDE_ROI),
@@ -446,6 +451,7 @@ def update_config(config, args):
                                                 "LabelType{0}".format(config.VALID.DATA.PREPROCESS.LABEL_TYPE),
                                                 "ROI_segmentation{0}".format(config.VALID.DATA.PREPROCESS.ROI_SEGMENTATION.DO_SEGMENTATION),
                                                 "Angle_threshold{0}".format(config.VALID.DATA.PREPROCESS.ROI_SEGMENTATION.THRESHOLD),
+                                                "ROI_mode-{0}".format(config.VALID.DATA.PREPROCESS.ROI_SEGMENTATION.ROI_MODE),
                                                 "Use_convex_hull{0}".format(config.VALID.DATA.PREPROCESS.ROI_SEGMENTATION.USE_CONVEX_HULL),
                                                 "Constrain_roi{0}".format(config.VALID.DATA.PREPROCESS.ROI_SEGMENTATION.CONSTRAIN_ROI),
                                                 "Outside_roi{0}".format(config.VALID.DATA.PREPROCESS.ROI_SEGMENTATION.USE_OUTSIDE_ROI),
@@ -493,6 +499,7 @@ def update_config(config, args):
                                               "LabelType{0}".format(config.TEST.DATA.PREPROCESS.LABEL_TYPE),
                                               "ROI_segmentation{0}".format(config.TEST.DATA.PREPROCESS.ROI_SEGMENTATION.DO_SEGMENTATION),
                                               "Angle_threshold{0}".format(config.TEST.DATA.PREPROCESS.ROI_SEGMENTATION.THRESHOLD),
+                                              "ROI_mode-{0}".format(config.TEST.DATA.PREPROCESS.ROI_SEGMENTATION.ROI_MODE),
                                               "Use_convex_hull{0}".format(config.TEST.DATA.PREPROCESS.ROI_SEGMENTATION.USE_CONVEX_HULL),
                                               "Constrain_roi{0}".format(config.TEST.DATA.PREPROCESS.ROI_SEGMENTATION.CONSTRAIN_ROI),
                                               "Outside_roi{0}".format(config.TEST.DATA.PREPROCESS.ROI_SEGMENTATION.USE_OUTSIDE_ROI),
@@ -572,6 +579,7 @@ def update_config(config, args):
                                                     "LabelType{0}".format(config.UNSUPERVISED.DATA.PREPROCESS.LABEL_TYPE),
                                                     "ROI_segmentation{0}".format(config.UNSUPERVISED.DATA.PREPROCESS.ROI_SEGMENTATION.DO_SEGMENTATION),
                                                     "Angle_threshold{0}".format(config.UNSUPERVISED.DATA.PREPROCESS.ROI_SEGMENTATION.THRESHOLD),
+                                                    "ROI_mode-{0}".format(config.UNSUPERVISED.DATA.PREPROCESS.ROI_SEGMENTATION.ROI_MODE),
                                                     "Use_convex_hull{0}".format(config.UNSUPERVISED.DATA.PREPROCESS.ROI_SEGMENTATION.USE_CONVEX_HULL),
                                                     "Constrain_roi{0}".format(config.UNSUPERVISED.DATA.PREPROCESS.ROI_SEGMENTATION.CONSTRAIN_ROI),
                                                     "Outside_roi{0}".format(config.UNSUPERVISED.DATA.PREPROCESS.ROI_SEGMENTATION.USE_OUTSIDE_ROI),
