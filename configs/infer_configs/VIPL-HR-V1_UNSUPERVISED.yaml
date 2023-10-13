@@ -2,14 +2,14 @@ BASE: ['']
 TOOLBOX_MODE: "unsupervised_method"      # "train_and_test"  or "only_test" or "unsupervised_method"
 UNSUPERVISED:
   METHOD: ["ICA", "POS", "CHROM", "GREEN", "LGI", "PBV"]
-  METRICS: ['MAE','RMSE','MAPE','Pearson', 'SNR']
+  METRICS: ['MAE','RMSE','MAPE','Pearson', 'SNR', 'Accuracy']
   DATA:
     FS: 30
     DATASET: VIPL-HR-V1
     DO_PREPROCESS: True               # if first time, should be true
     DATA_FORMAT: NDHWC
     DATA_PATH: "g:/Uni/_Master/Semester 9 (Master Thesis)/Datasets/VIPL-HR-V1/data/"       # Raw dataset path, need to be updated
-    CACHED_PATH: "g:/rppg_toolbox/PreprocessedData/"             # Processed dataset save path, need to be updated
+    CACHED_PATH: "g:/rppg_toolbox/PreprocessedData/VIPL-HR-v1_motion_scenario/filtered/"             # Processed dataset save path, need to be updated
     EXP_DATA_NAME: ""
     BEGIN: 0.0
     END: 1.0
@@ -21,11 +21,11 @@ UNSUPERVISED:
       CHUNK_LENGTH: 180
       ROI_SEGMENTATION:
         DO_SEGMENTATION: True  # True
-        THRESHOLD: 45
-        ROI_MODE: "optimal_roi"
-        USE_CONVEX_HULL: False  # True
-        CONSTRAIN_ROI: False  # True
-        USE_OUTSIDE_ROI: True
+        THRESHOLD: 90
+        ROI_MODE: "left_cheek"
+        USE_CONVEX_HULL: True  # True
+        CONSTRAIN_ROI: True  # True
+        USE_OUTSIDE_ROI: False
       CROP_FACE:
         DO_CROP_FACE: False  # False  # True
         USE_LARGE_FACE_BOX: False  # False  # True
