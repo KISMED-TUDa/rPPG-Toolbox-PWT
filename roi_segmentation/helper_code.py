@@ -6,6 +6,7 @@ from typing import List, Collection, NamedTuple
 
 from matplotlib import colors as mcol, pyplot as plt, cm as cm
 from scipy.spatial import distance, Delaunay
+from scipy.interpolate import griddata
 
 import roi_segmentation.DEFINITION_FACEMASK
 from numba import jit
@@ -212,8 +213,8 @@ def resize_roi(img: np.ndarray, mesh_points: List[np.ndarray]) -> np.ndarray:
 
     return resized_image
 
-# ToDo: find out, why jit doesn't work
-# @jit(nopython=True)
+
+@jit(nopython=True)
 def check_acceptance(index, angle_degrees, angle_history, threshold=90):
     """
     Check whether a triangle with a given angle is accepted based on its previous angle data.
@@ -392,6 +393,37 @@ def reshape_interpolated_angles(interpolated_angles, simplex_indices, x_max, x_m
     interpolated_surface_normal_angles = np.reshape(interpolated_angles, (-1, x_max - x_min))
 
     return interpolated_surface_normal_angles
+
+
+def interpolate_surface_normal_angles_scipy(centroid_coordinates, pixel_coordinates, surface_normal_angles, x_min, x_max):
+    """
+    Interpolate surface normal angles for all pixels in the face using scipy's griddata interpolation.
+
+    This function calculates the interpolated surface normal angles for pixels within the face, bounded by the given x_min and x_max range,
+    using scipy's griddata interpolation. In the end the interpolated surface normal angles are reshaped from flattened form into a 2D image like array
+    with the width of (x_max-x_min). The surface normal angles of pixels outside of the face are set to zero.
+
+    Parameters:
+    - centroid_coordinates (numpy.ndarray): Array containing the centroid coordinates of all face tesselation triangles
+    - pixel_coordinates (numpy.ndarray): Array of pixel coordinates to be interpolated
+    - surface_normal_angles (numpy.ndarray): Array of surface normal angles for each triangle.
+    - x_min (int): The minimum x-coordinate of the face bounding box
+    - x_max (int): The maximum x-coordinate of the face bounding box
+
+    Returns:
+    - numpy.ndarray: A 2D array containing the interpolated surface normal angles for each face pixel
+    """
+    # Create a meshgrid for centroid_coordinates
+    x_coords, y_coords = centroid_coordinates[:, 0], centroid_coordinates[:, 1]
+
+    # Perform griddata interpolation to obtain the interpolated angles
+    interpolated_angles = griddata((x_coords, y_coords), surface_normal_angles, (pixel_coordinates[:, 0], pixel_coordinates[:, 1]), method='linear')
+
+    # The surface normal angles of invalid pixels outside of the face are set to zero
+    interpolated_angles[np.isnan(interpolated_angles)] = 0
+
+    # Reshape the interpolated surface normal angles from flattened form into a 2D image like array with the width of (x_max-x_min)
+    return np.reshape(interpolated_angles, (-1, x_max - x_min))
 
 
 def plot_interpolation_heatmap(interpolated_surface_normal_angles, xx, yy):
@@ -620,6 +652,52 @@ def get_bounding_box_coordinates_filtered(img: np.ndarray, landmark_coords_xyz_h
     y_min, y_max = int(landmark_coords_xyz_history[:, video_frame_count, 1].min() * img_h), int(landmark_coords_xyz_history[:, video_frame_count, 1].max() * img_h)
 
     return x_min, y_min, x_max, y_max
+
+
+def apply_bounding_box(output_roi_face, bb_offset, x_max, x_min, y_max, y_min):
+    """
+        Apply a bounding box to a given region of interest (ROI) image while ensuring the box stays within the frame.
+        The resulting ROI image is cropped to fit within the bounding box.
+
+        Parameters:
+        output_roi_face (numpy.ndarray): The input ROI image as a NumPy array
+        bb_offset (int): The offset to apply to the bounding box borders
+        x_max (int): The maximum x-coordinate of the bounding box
+        x_min (int): The minimum x-coordinate of the bounding box
+        y_max (int): The maximum y-coordinate of the bounding box
+        y_min (int): The minimum y-coordinate of the bounding box
+
+        Returns:
+        tuple: A tuple containing:
+            - output_roi_face (numpy.ndarray): The ROI image with the applied bounding box
+            - x_max_bb (int): The updated maximum x-coordinate of the bounding box
+            - x_min_bb (int): The updated minimum x-coordinate of the bounding box
+            - y_max_bb (int): The updated maximum y-coordinate of the bounding box
+            - y_min_bb (int): The updated minimum y-coordinate of the bounding box
+    """
+    distance_max = max(x_max - x_min, y_max - y_min)
+    y_min_bb = (y_min + y_max - distance_max) / 2 - bb_offset
+    y_max_bb = (y_min + y_max + distance_max) / 2 + bb_offset
+    x_min_bb = (x_min + x_max - distance_max) / 2 - bb_offset
+    x_max_bb = (x_min + x_max + distance_max) / 2 + bb_offset
+
+    # ensure that bounding box borders stay inside the frame
+    if y_min_bb < 0:
+        y_min_bb = 0
+        y_max_bb = y_max_bb - y_min_bb
+    if y_max_bb > output_roi_face.shape[0]:
+        y_min_bb = y_min_bb - (y_max_bb - output_roi_face.shape[0])
+        y_max_bb = output_roi_face.shape[0]
+    if x_min_bb < 0:
+        x_min_bb = 0
+        x_max_bb = x_max_bb - x_min_bb
+    if x_max_bb > output_roi_face.shape[1]:
+        x_min_bb = x_min_bb - (x_max_bb - output_roi_face.shape[1])
+        x_max_bb = output_roi_face.shape[1]
+
+    output_roi_face = output_roi_face[int(y_min_bb):int(y_max_bb), int(x_min_bb):int(x_max_bb)]
+
+    return output_roi_face, x_max_bb, x_min_bb, y_max_bb, y_min_bb
 
 
 def calc_centroids(img: np.ndarray) -> (int, int):
