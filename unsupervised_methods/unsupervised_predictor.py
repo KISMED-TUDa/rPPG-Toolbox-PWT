@@ -1,10 +1,13 @@
 """Unsupervised learning methods including POS, GREEN, CHROME, ICA, LGI and PBV."""
-
+import datetime
 import logging
 import os
+import csv
 from collections import OrderedDict
 
+import matplotlib.pyplot as plt
 import numpy as np
+import sklearn.preprocessing
 import torch
 from evaluation.post_process import *
 from unsupervised_methods.methods.CHROME_DEHAAN import *
@@ -26,6 +29,23 @@ def unsupervised_predict(config, data_loader, method_name):
     predict_hr_fft_all = []
     gt_hr_fft_all = []
     SNR_all = []
+
+    # Create a CSV file for predicted and ground truth heart rate data for each video respectively window, if USE_SMALLER_WINDOW is chosen
+    video_file = data_loader['unsupervised'].dataset.cached_path
+    roi_mode = config.UNSUPERVISED.DATA.PREPROCESS.ROI_SEGMENTATION.ROI_MODE
+
+    hr_log_path = f"./data/HR_log/{os.path.splitext(video_file)[0].split('/')[-1]}"
+    hr_log_path = hr_log_path.replace(roi_mode, "optimal_roi")
+
+    if not os.path.exists(hr_log_path):
+        os.makedirs(hr_log_path)
+
+    csv_filename = f"{hr_log_path}/{roi_mode}_{method_name}.csv"
+
+    csv_file = open(csv_filename, mode='w', newline='')
+    csv_writer = csv.writer(csv_file)
+    csv_writer.writerow(["method_name", "video_file", "starting_frame", "ending_frame", "predict_hr_fft_all", "gt_hr_fft_all", "SNR_all"])
+
     sbar = tqdm(data_loader["unsupervised"], ncols=80)
     for _, test_batch in enumerate(sbar):
         batch_size = test_batch[0].shape[0]
@@ -74,8 +94,39 @@ def unsupervised_predict(config, data_loader, method_name):
                     gt_hr_fft_all.append(gt_fft_hr)
                     predict_hr_fft_all.append(pre_fft_hr)
                     SNR_all.append(SNR)
+
+                    csv_writer.writerow([method_name, data_loader['unsupervised'].dataset.inputs[_].split("\\")[-1], i, i+window_frame_size, pre_fft_hr, gt_fft_hr, SNR])
+
+                    #if _ == 3:
+                    #    scaler = sklearn.preprocessing.MinMaxScaler(feature_range=(-1, 1))
+                    #    BVP_window = -BVP_window
+                    #    ground_truth = scaler.fit_transform(label_window.reshape(-1, 1))
+                    #    BVP = scaler.fit_transform(BVP_window.reshape(-1, 1))[10:]
+                    #
+                    #    time = np.arange(len(BVP)) / config.UNSUPERVISED.DATA.FS
+                    #
+                    #    fig, ax1 = plt.subplots()
+                    #    ax1.plot(time, ground_truth[10:], label='GT BVP', color='#1f77b4')
+                    #    ax1.set_xlabel("Time (s)", fontsize=14)
+                    #    ax1.set_ylabel("Ground Truth BVP Normalized", color='#1f77b4', fontsize=14)
+                    #    ax1.tick_params('y', colors='#1f77b4', labelsize=11)
+                    #    ax1.tick_params(axis='x', labelsize=11)
+                    #
+                    #    ax2 = ax1.twinx()
+                    #    ax2.plot(time, BVP, label=method_name + ' BVP', color='#ff7f0e')
+                    #    ax2.set_xlabel("Time (s)", fontsize=14)
+                    #    ax2.set_ylabel(method_name + " BVP Normalized", color='#ff7f0e', fontsize=14)
+                    #    ax2.tick_params('y', colors='#ff7f0e', labelsize=11)
+                    #    fig.tight_layout()
+                    #
+                    #    plt.grid(True)
+                    #    plt.show()
                 else:
                     raise ValueError("Inference evaluation method name wrong!")
+
+    # csv_writer.writerow([predict_hr_fft_all, gt_hr_fft_all, SNR_all])
+    csv_file.close()
+
     print("Used Unsupervised Method: " + method_name)
     if config.INFERENCE.EVALUATION_METHOD == "peak detection":
         predict_hr_peak_all = np.array(predict_hr_peak_all)
@@ -103,7 +154,7 @@ def unsupervised_predict(config, data_loader, method_name):
             elif metric == "SNR":
                 SNR_FFT = np.mean(SNR_all)
                 standard_error = np.std(SNR_all) / np.sqrt(num_test_samples)
-                print("FFT SNR (FFT Label): {0} +/- {1} (dB)".format(SNR_FFT, standard_error))
+                print("FFT SNR (Peak Label): {0} +/- {1} (dB)".format(SNR_FFT, standard_error))
             elif metric == "Accuracy":
                 # Convert lists to NumPy arrays
                 gt_hr_peak_all = np.array(gt_hr_peak_all)
@@ -120,10 +171,10 @@ def unsupervised_predict(config, data_loader, method_name):
 
                 # Calculate accuracy by counting the number of correct predictions and dividing by the total samples
                 Accuracy = 100 * np.sum(correct_predictions) / num_test_samples
-                #     # Accuracy = 100*(Summe von predict_hr_peak_all - gt_hr_peak_all < 0.02*gt_hr_peak_all) / num_test_samples
+                #     # Accuracy = 100*(Summe von predict_hr_fft_all - gt_hr_fft_all < 0.02*gt_hr_fft_all) / num_test_samples
                 #     Accuracy_FFT = np.mean(SNR_all)
-                standard_error = np.std(Accuracy) / np.sqrt(num_test_samples)
-                print("FFT Accuracy (FFT Label): {0} +/- {1} (dB)".format(Accuracy, standard_error))
+                # standard_error = 100* np.std(Accuracy) / np.sqrt(num_test_samples)
+                print("FFT Accuracy (Peak Label): {0}".format(Accuracy))
 
             # ToDo: regressions konfusionsmatrix erstellen: https://medium.com/@dave.cote.msc/experimenting-confusion-matrix-for-regression-a-powerfull-model-analysis-tool-7c288d99d437
             else:
