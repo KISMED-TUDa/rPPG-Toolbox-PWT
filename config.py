@@ -593,8 +593,8 @@ def update_config(config, args):
                                                     ])
         # shorten path, if length exceeds 255 characters
         # (shorten to 243 characters, because of appended csv ending when saving file_list_df in function build_file_list)
-        if len(config.TEST.DATA.EXP_DATA_NAME) > 243:
-            config.TEST.DATA.EXP_DATA_NAME = config.TEST.DATA.EXP_DATA_NAME[0:243]
+        if len(config.UNSUPERVISED.DATA.EXP_DATA_NAME) > 243:
+            config.UNSUPERVISED.DATA.EXP_DATA_NAME = config.UNSUPERVISED.DATA.EXP_DATA_NAME[0:243]
 
     config.UNSUPERVISED.DATA.CACHED_PATH = os.path.join(config.UNSUPERVISED.DATA.CACHED_PATH, config.UNSUPERVISED.DATA.EXP_DATA_NAME)
 
