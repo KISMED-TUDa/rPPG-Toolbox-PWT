@@ -96,7 +96,7 @@ def count_pixel_area_cv(mask_image):
     return cv2.countNonZero(thresholded_image)
 
 
-@jit(nopython=True)
+# no jit, because opencv code is faster than numpy and numba
 def count_pixel_area(mask_image):
     """
     Counts the pixel area of a masked image.
@@ -110,7 +110,7 @@ def count_pixel_area(mask_image):
     :return: int: The pixel area of the masked region.
     """
     # Count the non-black pixels
-    return np.count_nonzero(mask_image)
+    return cv2.countNonZero(mask_image)
 
 
 def mask_eyes_out(frame, landmark_coords_xyz):  # results):
@@ -681,23 +681,50 @@ def apply_bounding_box(output_roi_face, bb_offset, x_max, x_min, y_max, y_min):
     x_min_bb = (x_min + x_max - distance_max) / 2 - bb_offset
     x_max_bb = (x_min + x_max + distance_max) / 2 + bb_offset
 
+    x_shift, y_shift = 0, 0
+
     # ensure that bounding box borders stay inside the frame
     if y_min_bb < 0:
-        y_min_bb = 0
+        y_shift = abs(y_min_bb)
         y_max_bb = y_max_bb - y_min_bb
+        y_min_bb = 0
     if y_max_bb > output_roi_face.shape[0]:
+        y_shift = output_roi_face.shape[0] - y_max_bb
         y_min_bb = y_min_bb - (y_max_bb - output_roi_face.shape[0])
         y_max_bb = output_roi_face.shape[0]
     if x_min_bb < 0:
-        x_min_bb = 0
+        x_shift = abs(x_min_bb)
         x_max_bb = x_max_bb - x_min_bb
+        x_min_bb = 0
     if x_max_bb > output_roi_face.shape[1]:
+        x_shift = output_roi_face.shape[1] - x_max_bb
         x_min_bb = x_min_bb - (x_max_bb - output_roi_face.shape[1])
         x_max_bb = output_roi_face.shape[1]
 
+    if x_min_bb > output_roi_face.shape[1]:
+        x_min_bb = output_roi_face.shape[1] - distance_max
+        x_max_bb = output_roi_face.shape[1]
+    if x_max_bb < distance_max:
+        x_min_bb = 0
+        x_max_bb = distance_max
+    if y_min_bb > output_roi_face.shape[0]:
+        y_min_bb = output_roi_face.shape[0] - distance_max
+        y_max_bb = output_roi_face.shape[0]
+    if y_max_bb < distance_max:
+        y_min_bb = 0
+        y_max_bb = distance_max
+
+    # crop roi bounding_box out of image
     output_roi_face = output_roi_face[int(y_min_bb):int(y_max_bb), int(x_min_bb):int(x_max_bb)]
 
-    return output_roi_face, x_max_bb, x_min_bb, y_max_bb, y_min_bb
+    # OpenCV image translation matrix
+    M = np.float32([[1, 0, x_shift], [0, 1, y_shift]])
+
+    # fill extracted ROI with black pixels if it's partly outside of image
+    # (= translate cropped output_roi_face by x_shift & y_shift)
+    shifted_roi_face = cv2.warpAffine(output_roi_face, M, (output_roi_face.shape[1], output_roi_face.shape[0]))
+
+    return shifted_roi_face, x_max_bb, x_min_bb, y_max_bb, y_min_bb
 
 
 def calc_centroids(img: np.ndarray) -> (int, int):

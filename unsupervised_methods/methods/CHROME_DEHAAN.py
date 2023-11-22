@@ -9,8 +9,8 @@ import unsupervised_methods.utils as utils
 
 
 def CHROME_DEHAAN(frames,FS):
-    LPF = 0.7
-    HPF = 2.5
+    LPF = 30/60  # = 30 BPM   # 0.7  # = 42 BPM
+    HPF = 250/60  # = 250 BPM  # 2.5 # = 150 BPM
     WinSec = 1.6
 
     RGB = process_video(frames)

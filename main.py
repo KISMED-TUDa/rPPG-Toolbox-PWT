@@ -352,7 +352,7 @@ if __name__ == "__main__":
             config_data=config.UNSUPERVISED.DATA)
         data_loader_dict["unsupervised"] = DataLoader(
             dataset=unsupervised_data,
-            num_workers=4,
+            num_workers=8,
             batch_size=1,
             shuffle=False,
             worker_init_fn=seed_worker,

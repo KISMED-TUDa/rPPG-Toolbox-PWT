@@ -13,8 +13,8 @@ from unsupervised_methods import utils
 
 def ICA_POH(frames, FS):
     # Cut off frequency.
-    LPF = 0.7
-    HPF = 2.5
+    LPF = 30/60  # = 30 BPM   # 0.7  # = 42 BPM
+    HPF = 250/60  # = 250 BPM  # 2.5 # = 150 BPM
     RGB = process_video(frames)
 
     NyquistF = 1 / 2 * FS
