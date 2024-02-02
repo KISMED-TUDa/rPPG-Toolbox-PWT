@@ -30,6 +30,7 @@ _C.TRAIN.OPTIMIZER.BETAS = (0.9, 0.999)
 # SGD momentum
 _C.TRAIN.OPTIMIZER.MOMENTUM = 0.9
 _C.TRAIN.MODEL_FILE_NAME = ''
+_C.TRAIN.PLOT_LOSSES_AND_LR = True
 # Train.Data settings
 _C.TRAIN.DATA = CN()
 _C.TRAIN.DATA.INFO = CN()
@@ -76,6 +77,7 @@ _C.TRAIN.DATA.PREPROCESS.ROI_SEGMENTATION.CONSTRAIN_ROI = True
 _C.TRAIN.DATA.PREPROCESS.ROI_SEGMENTATION.USE_OUTSIDE_ROI = False
 _C.TRAIN.DATA.PREPROCESS.CROP_FACE = CN()
 _C.TRAIN.DATA.PREPROCESS.CROP_FACE.DO_CROP_FACE = True
+_C.TRAIN.DATA.PREPROCESS.CROP_FACE.BACKEND = 'HC'
 _C.TRAIN.DATA.PREPROCESS.CROP_FACE.USE_LARGE_FACE_BOX = True
 _C.TRAIN.DATA.PREPROCESS.CROP_FACE.LARGE_BOX_COEF = 1.5
 _C.TRAIN.DATA.PREPROCESS.CROP_FACE.DETECTION = CN()
@@ -143,6 +145,7 @@ _C.VALID.DATA.PREPROCESS.ROI_SEGMENTATION.CONSTRAIN_ROI = True
 _C.VALID.DATA.PREPROCESS.ROI_SEGMENTATION.USE_OUTSIDE_ROI = False
 _C.VALID.DATA.PREPROCESS.CROP_FACE = CN()
 _C.VALID.DATA.PREPROCESS.CROP_FACE.DO_CROP_FACE = True
+_C.VALID.DATA.PREPROCESS.CROP_FACE.BACKEND = 'HC'
 _C.VALID.DATA.PREPROCESS.CROP_FACE.USE_LARGE_FACE_BOX = True
 _C.VALID.DATA.PREPROCESS.CROP_FACE.LARGE_BOX_COEF = 1.5
 _C.VALID.DATA.PREPROCESS.CROP_FACE.DETECTION = CN()
@@ -214,6 +217,7 @@ _C.TEST.DATA.PREPROCESS.ROI_SEGMENTATION.CONSTRAIN_ROI = True
 _C.TEST.DATA.PREPROCESS.ROI_SEGMENTATION.USE_OUTSIDE_ROI = False
 _C.TEST.DATA.PREPROCESS.CROP_FACE = CN()
 _C.TEST.DATA.PREPROCESS.CROP_FACE.DO_CROP_FACE = True
+_C.TEST.DATA.PREPROCESS.CROP_FACE.BACKEND = 'HC'
 _C.TEST.DATA.PREPROCESS.CROP_FACE.USE_LARGE_FACE_BOX = True
 _C.TEST.DATA.PREPROCESS.CROP_FACE.LARGE_BOX_COEF = 1.5
 _C.TEST.DATA.PREPROCESS.CROP_FACE.DETECTION = CN()
@@ -237,6 +241,7 @@ _C.TEST.DATA.PREPROCESS.BIGSMALL.RESIZE.SMALL_H = 9
 # -----------------------------------------------------------------------------\
 _C.UNSUPERVISED = CN()
 _C.UNSUPERVISED.METHOD = []
+_C.UNSUPERVISED.OUTPUT_SAVE_DIR = ''
 _C.UNSUPERVISED.METRICS = []
 # Unsupervised.Data settings
 _C.UNSUPERVISED.DATA = CN()
@@ -284,6 +289,7 @@ _C.UNSUPERVISED.DATA.PREPROCESS.ROI_SEGMENTATION.CONSTRAIN_ROI = True
 _C.UNSUPERVISED.DATA.PREPROCESS.ROI_SEGMENTATION.USE_OUTSIDE_ROI = False
 _C.UNSUPERVISED.DATA.PREPROCESS.CROP_FACE = CN()
 _C.UNSUPERVISED.DATA.PREPROCESS.CROP_FACE.DO_CROP_FACE = True
+_C.UNSUPERVISED.DATA.PREPROCESS.CROP_FACE.BACKEND = 'HC'
 _C.UNSUPERVISED.DATA.PREPROCESS.CROP_FACE.USE_LARGE_FACE_BOX = True
 _C.UNSUPERVISED.DATA.PREPROCESS.CROP_FACE.LARGE_BOX_COEF = 1.5
 _C.UNSUPERVISED.DATA.PREPROCESS.CROP_FACE.DETECTION = CN()
@@ -371,7 +377,7 @@ def _update_config_from_file(config, cfg_file):
     for cfg in yaml_cfg.setdefault('BASE', ['']):
         if cfg:
             _update_config_from_file(
-                config, os.path.join(os.path.dirname(cfg_file), cfg)
+                    config, os.path.join(os.path.dirname(cfg_file), cfg)
             )
     print('=> Merging a config file from {}'.format(cfg_file))
     config.merge_from_file(cfg_file)
@@ -379,7 +385,6 @@ def _update_config_from_file(config, cfg_file):
 
 
 def update_config(config, args):
-
     # store default file list path for checking against later
     default_TRAIN_FILE_LIST_PATH = config.TRAIN.DATA.FILE_LIST_PATH
     default_VALID_FILE_LIST_PATH = config.VALID.DATA.FILE_LIST_PATH
@@ -389,7 +394,7 @@ def update_config(config, args):
     # update flag from config file
     _update_config_from_file(config, args.config_file)
     config.defrost()
-    
+
     # UPDATE TRAIN PATHS
     if config.TRAIN.DATA.FILE_LIST_PATH == default_TRAIN_FILE_LIST_PATH:
         config.TRAIN.DATA.FILE_LIST_PATH = os.path.join(config.TRAIN.DATA.CACHED_PATH, 'DataFileLists')
@@ -399,9 +404,9 @@ def update_config(config, args):
                                               "SizeW{0}".format(str(config.TRAIN.DATA.PREPROCESS.RESIZE.W)),
                                               "SizeH{0}".format(str(config.TRAIN.DATA.PREPROCESS.RESIZE.H)),
                                               "ClipLength{0}".format(str(config.TRAIN.DATA.PREPROCESS.CHUNK_LENGTH)),
-                                              "DataType{0}".format("_".join(config.TRAIN.DATA.PREPROCESS.DATA_TYPE)),
+                                              # "DataType{0}".format("_".join(config.TRAIN.DATA.PREPROCESS.DATA_TYPE)),
                                               "DataAug{0}".format("_".join(config.TRAIN.DATA.PREPROCESS.DATA_AUG)),
-                                              "LabelType{0}".format(config.TRAIN.DATA.PREPROCESS.LABEL_TYPE),
+                                              # "LabelType{0}".format(config.TRAIN.DATA.PREPROCESS.LABEL_TYPE),
                                               "ROI_segmentation{0}".format(config.TRAIN.DATA.PREPROCESS.ROI_SEGMENTATION.DO_SEGMENTATION),
                                               "Angle_threshold{0}".format(config.TRAIN.DATA.PREPROCESS.ROI_SEGMENTATION.THRESHOLD),
                                               "ROI_mode-{0}".format(config.TRAIN.DATA.PREPROCESS.ROI_SEGMENTATION.ROI_MODE),
@@ -431,7 +436,7 @@ def update_config(config, args):
                                                         FOLD_STR + '.csv')
     elif ext != '.csv':
         raise ValueError('TRAIN dataset FILE_LIST_PATH must either be a directory path or a .csv file name')
-    
+
     if ext == '.csv' and config.TRAIN.DATA.DO_PREPROCESS:
         raise ValueError('User specified TRAIN dataset FILE_LIST_PATH .csv file already exists. \
                          Please turn DO_PREPROCESS to False or delete existing TRAIN dataset FILE_LIST_PATH .csv file.')
@@ -446,9 +451,9 @@ def update_config(config, args):
                                                 "SizeW{0}".format(str(config.VALID.DATA.PREPROCESS.RESIZE.W)),
                                                 "SizeH{0}".format(str(config.VALID.DATA.PREPROCESS.RESIZE.H)),
                                                 "ClipLength{0}".format(str(config.VALID.DATA.PREPROCESS.CHUNK_LENGTH)),
-                                                "DataType{0}".format("_".join(config.VALID.DATA.PREPROCESS.DATA_TYPE)),
+                                                # "DataType{0}".format("_".join(config.VALID.DATA.PREPROCESS.DATA_TYPE)),
                                                 "DataAug{0}".format("_".join(config.VALID.DATA.PREPROCESS.DATA_AUG)),
-                                                "LabelType{0}".format(config.VALID.DATA.PREPROCESS.LABEL_TYPE),
+                                                # "LabelType{0}".format(config.VALID.DATA.PREPROCESS.LABEL_TYPE),
                                                 "ROI_segmentation{0}".format(config.VALID.DATA.PREPROCESS.ROI_SEGMENTATION.DO_SEGMENTATION),
                                                 "Angle_threshold{0}".format(config.VALID.DATA.PREPROCESS.ROI_SEGMENTATION.THRESHOLD),
                                                 "ROI_mode-{0}".format(config.VALID.DATA.PREPROCESS.ROI_SEGMENTATION.ROI_MODE),
@@ -494,9 +499,9 @@ def update_config(config, args):
                                               "SizeW{0}".format(str(config.TEST.DATA.PREPROCESS.RESIZE.W)),
                                               "SizeH{0}".format(str(config.TEST.DATA.PREPROCESS.RESIZE.H)),
                                               "ClipLength{0}".format(str(config.TEST.DATA.PREPROCESS.CHUNK_LENGTH)),
-                                              "DataType{0}".format("_".join(config.TEST.DATA.PREPROCESS.DATA_TYPE)),
+                                              # "DataType{0}".format("_".join(config.TEST.DATA.PREPROCESS.DATA_TYPE)),
                                               "DataAug{0}".format("_".join(config.TEST.DATA.PREPROCESS.DATA_AUG)),
-                                              "LabelType{0}".format(config.TEST.DATA.PREPROCESS.LABEL_TYPE),
+                                              # "LabelType{0}".format(config.TEST.DATA.PREPROCESS.LABEL_TYPE),
                                               "ROI_segmentation{0}".format(config.TEST.DATA.PREPROCESS.ROI_SEGMENTATION.DO_SEGMENTATION),
                                               "Angle_threshold{0}".format(config.TEST.DATA.PREPROCESS.ROI_SEGMENTATION.THRESHOLD),
                                               "ROI_mode-{0}".format(config.TEST.DATA.PREPROCESS.ROI_SEGMENTATION.ROI_MODE),
@@ -517,7 +522,7 @@ def update_config(config, args):
     config.TEST.DATA.CACHED_PATH = os.path.join(config.TEST.DATA.CACHED_PATH, config.TEST.DATA.EXP_DATA_NAME)
 
     name, ext = os.path.splitext(config.TEST.DATA.FILE_LIST_PATH)
-    if not ext: # no file extension
+    if not ext:  # no file extension
         FOLD_STR = '_' + config.TEST.DATA.FOLD.FOLD_NAME if config.TEST.DATA.FOLD.FOLD_NAME else ''
         config.TEST.DATA.FILE_LIST_PATH = os.path.join(config.TEST.DATA.FILE_LIST_PATH, \
                                                        config.TEST.DATA.EXP_DATA_NAME + '_' + \
@@ -530,10 +535,10 @@ def update_config(config, args):
     if ext == '.csv' and config.TEST.DATA.DO_PREPROCESS:
         raise ValueError('User specified TEST dataset FILE_LIST_PATH .csv file already exists. \
                          Please turn DO_PREPROCESS to False or delete existing TEST dataset FILE_LIST_PATH .csv file.')
-    
 
     # UPDATE MODEL_FILE_NAME IF NEEDED
-    if any(aug != 'None' for aug in config.TRAIN.DATA.PREPROCESS.DATA_AUG + config.VALID.DATA.PREPROCESS.DATA_AUG + config.TEST.DATA.PREPROCESS.DATA_AUG):
+    if any(aug != 'None' for aug in
+           config.TRAIN.DATA.PREPROCESS.DATA_AUG + config.VALID.DATA.PREPROCESS.DATA_AUG + config.TEST.DATA.PREPROCESS.DATA_AUG):
         # Check if the initial MODEL_FILE_NAME follows the expected pattern
         if re.match(r'^[^_]+(_[^_]+)?(_[^_]+)?_[^_]+$', config.TRAIN.MODEL_FILE_NAME):
             model_file_name_parts = config.TRAIN.MODEL_FILE_NAME.split('_')
@@ -599,13 +604,13 @@ def update_config(config, args):
     config.UNSUPERVISED.DATA.CACHED_PATH = os.path.join(config.UNSUPERVISED.DATA.CACHED_PATH, config.UNSUPERVISED.DATA.EXP_DATA_NAME)
 
     name, ext = os.path.splitext(config.UNSUPERVISED.DATA.FILE_LIST_PATH)
-    if not ext: # no file extension
+    if not ext:  # no file extension
         FOLD_STR = '_' + config.UNSUPERVISED.DATA.FOLD.FOLD_NAME if config.UNSUPERVISED.DATA.FOLD.FOLD_NAME else ''
         config.UNSUPERVISED.DATA.FILE_LIST_PATH = os.path.join(config.UNSUPERVISED.DATA.FILE_LIST_PATH, \
-                                                        config.UNSUPERVISED.DATA.EXP_DATA_NAME + '_' + \
-                                                        str(config.UNSUPERVISED.DATA.BEGIN) + '_' + \
-                                                        str(config.UNSUPERVISED.DATA.END) + \
-                                                        FOLD_STR + '.csv')
+                                                               config.UNSUPERVISED.DATA.EXP_DATA_NAME + '_' + \
+                                                               str(config.UNSUPERVISED.DATA.BEGIN) + '_' + \
+                                                               str(config.UNSUPERVISED.DATA.END) + \
+                                                               FOLD_STR + '.csv')
     elif ext != '.csv':
         raise ValueError('UNSUPERVISED dataset FILE_LIST_PATH must either be a directory path or a .csv file name')
 
@@ -613,14 +618,23 @@ def update_config(config, args):
         raise ValueError('User specified UNSUPERVISED dataset FILE_LIST_PATH .csv file already exists. \
                          Please turn DO_PREPROCESS to False or delete existing UNSUPERVISED dataset FILE_LIST_PATH .csv file.')
 
+    # Establish the directory to hold pre-trained models from a given experiment inside
+    # the configured log directory (runs/exp by default)
+    config.MODEL.MODEL_DIR = os.path.join(config.LOG.PATH, config.TRAIN.DATA.EXP_DATA_NAME, config.MODEL.MODEL_DIR)
 
-    config.LOG.PATH = os.path.join(
-        config.LOG.PATH, config.VALID.DATA.EXP_DATA_NAME)
+    # Establish the directory to hold outputs saved during testing inside the
+    # configured log directory (runs/exp by default)
+    if config.TOOLBOX_MODE == 'train_and_test' or config.TOOLBOX_MODE == 'only_test':
+        config.TEST.OUTPUT_SAVE_DIR = os.path.join(config.LOG.PATH, config.TEST.DATA.EXP_DATA_NAME,
+                                                   'saved_test_outputs')
+    elif config.TOOLBOX_MODE == 'unsupervised_method':
+        config.UNSUPERVISED.OUTPUT_SAVE_DIR = os.path.join(config.LOG.PATH, config.UNSUPERVISED.DATA.EXP_DATA_NAME,
+                                                           'saved_outputs')
+    else:
+        raise ValueError('TOOLBOX_MODE only supports train_and_test, only_test, or unsupervised_method!')
 
-    config.MODEL.MODEL_DIR = os.path.join(config.MODEL.MODEL_DIR, config.TRAIN.DATA.EXP_DATA_NAME)
     config.freeze()
     return
-
 
 
 def get_config(args):
@@ -630,5 +644,4 @@ def get_config(args):
     update_config(config, args)
 
     return config
-
 
