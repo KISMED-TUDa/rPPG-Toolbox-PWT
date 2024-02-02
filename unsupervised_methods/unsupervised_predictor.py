@@ -1,14 +1,8 @@
 """Unsupervised learning methods including POS, GREEN, CHROME, ICA, LGI and PBV."""
-import datetime
-import logging
 import os
 import csv
-from collections import OrderedDict
-
-import matplotlib.pyplot as plt
 import numpy as np
-import sklearn.preprocessing
-import torch
+import evaluation.post_process
 from evaluation.post_process import *
 from unsupervised_methods.methods.CHROME_DEHAAN import *
 from unsupervised_methods.methods.GREEN import *
@@ -17,18 +11,20 @@ from unsupervised_methods.methods.LGI import *
 from unsupervised_methods.methods.PBV import *
 from unsupervised_methods.methods.POS_WANG import *
 from tqdm import tqdm
+from evaluation.BlandAltmanPy import BlandAltman
 
 
 def unsupervised_predict(config, data_loader, method_name):
     """ Model evaluation on the testing dataset."""
     if data_loader["unsupervised"] is None:
         raise ValueError("No data for unsupervised method predicting")
-    print("===Unsupervised Method ( " + method_name + " ) Predicting ===")
+    print("\n===Unsupervised Method ( " + method_name + " ) Predicting ===")
     predict_hr_peak_all = []
     gt_hr_peak_all = []
     predict_hr_fft_all = []
     gt_hr_fft_all = []
-    SNR_all = []
+    SNR_peak_all = []
+    SNR_fft_all = []
 
     # Create a CSV file for predicted and ground truth heart rate data for each video respectively window, if USE_SMALLER_WINDOW is chosen
     video_file = data_loader['unsupervised'].dataset.cached_path
@@ -79,7 +75,8 @@ def unsupervised_predict(config, data_loader, method_name):
                 label_window = labels_input[i:i+window_frame_size]
 
                 if len(BVP_window) < 9:
-                    print(f"Window frame size of {len(BVP_window)} is smaller than minimum pad length of 9. Window ignored!")
+                    # print(f"Window frame size of {len(BVP_window)} is smaller than minimum pad length of 9 or smaller "
+                    #       f"than a third of window_frame_size. Window ignored!")
                     continue
 
                 if config.INFERENCE.EVALUATION_METHOD == "peak detection":
@@ -87,52 +84,38 @@ def unsupervised_predict(config, data_loader, method_name):
                                                                     fs=config.UNSUPERVISED.DATA.FS, hr_method='Peak')
                     gt_hr_peak_all.append(gt_hr)
                     predict_hr_peak_all.append(pre_hr)
-                    SNR_all.append(SNR)
+                    SNR_peak_all.append(SNR)
                 elif config.INFERENCE.EVALUATION_METHOD == "FFT":
                     gt_fft_hr, pre_fft_hr, SNR = calculate_metric_per_video(BVP_window, label_window, diff_flag=False,
                                                                     fs=config.UNSUPERVISED.DATA.FS, hr_method='FFT')
                     gt_hr_fft_all.append(gt_fft_hr)
                     predict_hr_fft_all.append(pre_fft_hr)
-                    SNR_all.append(SNR)
+                    SNR_fft_all.append(SNR)
 
                     csv_writer.writerow([method_name, data_loader['unsupervised'].dataset.inputs[_].split("\\")[-1], i, i+window_frame_size, pre_fft_hr, gt_fft_hr, SNR])
 
-                    #if _ == 3:
-                    #    scaler = sklearn.preprocessing.MinMaxScaler(feature_range=(-1, 1))
-                    #    BVP_window = -BVP_window
-                    #    ground_truth = scaler.fit_transform(label_window.reshape(-1, 1))
-                    #    BVP = scaler.fit_transform(BVP_window.reshape(-1, 1))[10:]
-                    #
-                    #    time = np.arange(len(BVP)) / config.UNSUPERVISED.DATA.FS
-                    #
-                    #    fig, ax1 = plt.subplots()
-                    #    ax1.plot(time, ground_truth[10:], label='GT BVP', color='#1f77b4')
-                    #    ax1.set_xlabel("Time (s)", fontsize=14)
-                    #    ax1.set_ylabel("Ground Truth BVP Normalized", color='#1f77b4', fontsize=14)
-                    #    ax1.tick_params('y', colors='#1f77b4', labelsize=11)
-                    #    ax1.tick_params(axis='x', labelsize=11)
-                    #
-                    #    ax2 = ax1.twinx()
-                    #    ax2.plot(time, BVP, label=method_name + ' BVP', color='#ff7f0e')
-                    #    ax2.set_xlabel("Time (s)", fontsize=14)
-                    #    ax2.set_ylabel(method_name + " BVP Normalized", color='#ff7f0e', fontsize=14)
-                    #    ax2.tick_params('y', colors='#ff7f0e', labelsize=11)
-                    #    fig.tight_layout()
-                    #
-                    #    plt.grid(True)
-                    #    plt.show()
+                    # save numpy arrays if you want to plot the signals, using the script: tools/output_signal_viz/plot_gt_and_rppg_bvp.py
+                    # time = np.arange(len(BVP)) / config.UNSUPERVISED.DATA.FS
+                    # np.save(f'{video_file}/time_{_}_{idx}_{i}.npy', time)
+                    # np.save(f'{video_file}/ground_truth_{_}_{idx}_{i}.npy', ground_truth)
+                    # np.save(f'{video_file}/{method_name}_BVP_{_}_{idx}_{i}.npy', BVP)
                 else:
                     raise ValueError("Inference evaluation method name wrong!")
 
-    # csv_writer.writerow([predict_hr_fft_all, gt_hr_fft_all, SNR_all])
+                # Filename ID to be used in any results files (e.g., Bland-Altman plots) that get saved
+                if config.TOOLBOX_MODE == 'unsupervised_method':
+                    filename_id = method_name + "_" + config.UNSUPERVISED.DATA.DATASET
+                else:
+                    raise ValueError('unsupervised_predictor.py evaluation only supports unsupervised_method!')
+
     csv_file.close()
 
-    print("Used Unsupervised Method: " + method_name)
     if config.INFERENCE.EVALUATION_METHOD == "peak detection":
         predict_hr_peak_all = np.array(predict_hr_peak_all)
         gt_hr_peak_all = np.array(gt_hr_peak_all)
-        SNR_all = np.array(SNR_all)
+        SNR_peak_all = np.array(SNR_peak_all)
         num_test_samples = len(predict_hr_peak_all)
+
         for metric in config.UNSUPERVISED.METRICS:
             if metric == "MAE":
                 MAE_PEAK = np.mean(np.abs(predict_hr_peak_all - gt_hr_peak_all))
@@ -152,38 +135,45 @@ def unsupervised_predict(config, data_loader, method_name):
                 standard_error = np.sqrt((1 - correlation_coefficient**2) / (num_test_samples - 2))
                 print("PEAK Pearson (Peak Label): {0} +/- {1}".format(correlation_coefficient, standard_error))
             elif metric == "SNR":
-                SNR_FFT = np.mean(SNR_all)
-                standard_error = np.std(SNR_all) / np.sqrt(num_test_samples)
-                print("FFT SNR (Peak Label): {0} +/- {1} (dB)".format(SNR_FFT, standard_error))
+                SNR_peak = np.mean(SNR_peak_all)
+                standard_error = np.std(SNR_peak_all) / np.sqrt(num_test_samples)
+                print("PEAK SNR (Peak Label): {0} +/- {1} (dB)".format(SNR_peak, standard_error))
             elif metric == "Accuracy":
-                # Convert lists to NumPy arrays
                 gt_hr_peak_all = np.array(gt_hr_peak_all)
                 gt_hr_peak_all = np.array(gt_hr_peak_all)
 
-                # Calculate absolute difference between the arrays
+                # calculate absolute difference between the arrays
                 abs_diff = np.abs(predict_hr_peak_all - gt_hr_peak_all)
 
-                # Calculate the maximum allowed difference (currently: 1 bpm, alternatively: 1% of the corresponding value in gt_hr_peak_all)
-                max_allowed_diff = 1         # 0.01 * gt_hr_peak_all
+                # calculate the maximum allowed difference (currently: 2 bpm, alternatively: 1% of the corresponding value in gt_hr_peak_all)
+                max_allowed_diff = 2      # 0.01 * gt_hr_peak_all
 
-                # Check which elements have an absolute difference less than the maximum allowed difference
+                # check how much elements have an absolute difference less than the maximum allowed difference
                 correct_predictions = abs_diff <= max_allowed_diff
-
-                # Calculate accuracy by counting the number of correct predictions and dividing by the total samples
                 Accuracy = 100 * np.sum(correct_predictions) / num_test_samples
-                #     # Accuracy = 100*(Summe von predict_hr_fft_all - gt_hr_fft_all < 0.02*gt_hr_fft_all) / num_test_samples
-                #     Accuracy_FFT = np.mean(SNR_all)
-                # standard_error = 100* np.std(Accuracy) / np.sqrt(num_test_samples)
-                print("FFT Accuracy (Peak Label): {0}".format(Accuracy))
-
-            # ToDo: regressions konfusionsmatrix erstellen: https://medium.com/@dave.cote.msc/experimenting-confusion-matrix-for-regression-a-powerfull-model-analysis-tool-7c288d99d437
+                print("PEAK Accuracy (Peak Label): {0}".format(Accuracy))
+            elif "BA" in metric:
+                compare = BlandAltman(gt_hr_peak_all, predict_hr_peak_all, config, averaged=True)
+                compare.scatter_plot(
+                    x_label='GT PPG HR [bpm]',
+                    y_label='rPPG HR [bpm]',
+                    show_legend=True, figure_size=(5, 5),
+                    the_title=f'{filename_id}_Peak_BlandAltman_ScatterPlot',
+                    file_name=f'{filename_id}_Peak_BlandAltman_ScatterPlot.pdf')
+                compare.difference_plot(
+                    x_label='Difference between rPPG HR and GT PPG HR [bpm]',
+                    y_label='Average of rPPG HR and GT PPG HR [bpm]',
+                    show_legend=True, figure_size=(5, 5),
+                    the_title=f'{filename_id}_Peak_BlandAltman_DifferencePlot',
+                    file_name=f'{filename_id}_Peak_BlandAltman_DifferencePlot.pdf')
             else:
                 raise ValueError("Wrong Test Metric Type")
     elif config.INFERENCE.EVALUATION_METHOD == "FFT":
         predict_hr_fft_all = np.array(predict_hr_fft_all)
         gt_hr_fft_all = np.array(gt_hr_fft_all)
-        SNR_all = np.array(SNR_all)
+        SNR_fft_all = np.array(SNR_fft_all)
         num_test_samples = len(predict_hr_fft_all)
+
         for metric in config.UNSUPERVISED.METRICS:
             if metric == "MAE":
                 MAE_FFT = np.mean(np.abs(predict_hr_fft_all - gt_hr_fft_all))
@@ -203,32 +193,45 @@ def unsupervised_predict(config, data_loader, method_name):
                 standard_error = np.sqrt((1 - correlation_coefficient**2) / (num_test_samples - 2))
                 print("FFT Pearson (FFT Label): {0} +/- {1}".format(correlation_coefficient, standard_error))
             elif metric == "SNR":
-                SNR_PEAK = np.mean(SNR_all)
-                standard_error = np.std(SNR_all) / np.sqrt(num_test_samples)
-                print("FFT SNR (FFT Label): {0} +/- {1} (dB)".format(SNR_PEAK, standard_error))
+                SNR_fft = np.mean(SNR_fft_all)
+                standard_error = np.std(SNR_fft_all) / np.sqrt(num_test_samples)
+                print("FFT SNR (FFT Label): {0} +/- {1} (dB)".format(SNR_fft, standard_error))
             elif metric == "Accuracy":
-                # Convert lists to NumPy arrays
                 predict_hr_fft_all = np.array(predict_hr_fft_all)
                 gt_hr_fft_all = np.array(gt_hr_fft_all)
 
-                # Calculate absolute difference between the arrays
+                # calculate absolute difference between the arrays
                 abs_diff = np.abs(predict_hr_fft_all - gt_hr_fft_all)
 
-                # Calculate the maximum allowed difference (currently: 2 bpm like the accuracy of a fingerclip PPG)
+                # calculate the maximum allowed difference (currently: 2 bpm like the accuracy of a fingerclip PPG)
                 max_allowed_diff = 2
 
-                # Check which elements have an absolute difference less than the maximum allowed difference
+                # Check how much elements have an absolute difference less than the maximum allowed difference
                 correct_predictions = abs_diff <= max_allowed_diff
-
-                # Calculate accuracy by counting the number of correct predictions and dividing by the total samples
                 Accuracy = 100 * np.sum(correct_predictions) / num_test_samples
-                #     # Accuracy = 100*(Summe von predict_hr_fft_all - gt_hr_fft_all < 0.02*gt_hr_fft_all) / num_test_samples
-                #     Accuracy_FFT = np.mean(SNR_all)
-                # standard_error = 100* np.std(Accuracy) / np.sqrt(num_test_samples)
                 print("FFT Accuracy (FFT Label): {0}".format(Accuracy))
 
-            # ToDo: regressions konfusionsmatrix erstellen: https://medium.com/@dave.cote.msc/experimenting-confusion-matrix-for-regression-a-powerfull-model-analysis-tool-7c288d99d437
-
+                print("\n")
+                print(round(MAE_FFT, 2))
+                print(round(RMSE_FFT, 2))
+                print(round(correlation_coefficient, 4))
+                print(round(SNR_fft, 2))
+                print(round(Accuracy, 2))
+                print("\n")
+            elif "BA" in metric:
+                compare = BlandAltman(gt_hr_fft_all, predict_hr_fft_all, config, averaged=True)
+                compare.scatter_plot(
+                        x_label='Referenzherzrate (BPM)',
+                        y_label='Vorhergesagte Herzrate (BPM)',
+                        show_legend=True, figure_size=(5, 5),
+                        the_title=f'{filename_id}_FFT_BlandAltman_ScatterPlot',
+                        file_name=f'{filename_id}_FFT_BlandAltman_ScatterPlot.pdf')
+                compare.difference_plot(
+                        x_label='Differenz zwischen vorhergesagter und Referenzherzrate (BPM)',
+                        y_label='Mittelwert aus vorhergesagter und Referenzherzrate (BPM)',
+                        show_legend=True, figure_size=(5, 5),
+                        the_title=f'{filename_id}_FFT_BlandAltman_DifferencePlot',
+                        file_name=f'{filename_id}_FFT_BlandAltman_DifferencePlot.pdf')
             else:
                 raise ValueError("Wrong Test Metric Type")
     else:
