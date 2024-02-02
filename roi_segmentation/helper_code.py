@@ -1,7 +1,5 @@
 import numpy as np
 import cv2
-import matplotlib.pyplot as plt
-
 from typing import List, Collection, NamedTuple
 
 from matplotlib import colors as mcol, pyplot as plt, cm as cm
@@ -34,12 +32,6 @@ def euclidean_distance(triangle1, triangle2):
     """
     Calculate the Euclidean distance between the centroids of two triangles.
     Each triangle should have three rows, each containing the (x, y) coordinates of one of its vertices.
-
-    Example:
-    triangle1 = np.array([[0, 0], [1, 0], [0, 1]])
-    triangle2 = np.array([[1, 1], [2, 1], [1, 2]])
-    distance = euclidean_distance(triangle1, triangle2)
-    # distance is now approximately 1.4142
 
     :param triangle1: (numpy.ndarray): A 2D numpy array representing the first triangle.
     :param triangle2: (numpy.ndarray): A 2D numpy array representing the second triangle.
@@ -111,6 +103,108 @@ def count_pixel_area(mask_image):
     """
     # Count the non-black pixels
     return cv2.countNonZero(mask_image)
+
+
+def generate_face_mask(face_landmarks, frame):
+    # Create a black mask image
+    mask = np.zeros((frame.shape[0], frame.shape[1]), dtype=np.uint8)  # np.zeros_like(frame)
+
+    # Draw each triangle as white on the mask
+    for triangle in roi_segmentation.DEFINITION_FACEMASK.FACE_MESH_TESSELATION:
+        pts = np.array([[landmark.x * frame.shape[1], landmark.y * frame.shape[0]]
+                        for landmark in face_landmarks.landmark])
+        pts = pts.reshape((-1, 1, 2)).astype(np.int32)
+        triangle_pts = [pts[pt] for pt in triangle]
+        cv2.fillConvexPoly(mask, np.array(triangle_pts), (255, 255, 255, cv2.LINE_AA))
+
+    return mask
+
+
+def skin_segmentation(frame):
+    # Convert frame to rg-color space
+    normalized_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB) / 255.0
+
+    # Convert frame to YCrCb color space
+    # normalized_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2YCrCb)
+
+    r_channel = normalized_frame[:, :, 0]
+    g_channel = normalized_frame[:, :, 1]
+    b_channel = normalized_frame[:, :, 2]
+
+    # Calculate 2D histograms for R, G, and B channels
+    bins_b, bins_g, bins_r, hist_b, hist_g, hist_r = calc_histograms(r_channel, g_channel, b_channel, n_bins=64)
+
+    lower_threshold_r, upper_threshold_r, lower_threshold_g, upper_threshold_g, lower_threshold_b, upper_threshold_b = \
+        calc_histogram_tresholds(hist_r, hist_g, hist_b, bins_r, bins_g, bins_b)
+
+    skin_mask = cv2.inRange(frame, np.array([int(lower_threshold_b*255), int(lower_threshold_g*255), 0]), np.array([255, 255, 255]))
+
+    skin_mask = cv2.medianBlur(skin_mask, 3)
+    skin_mask = cv2.morphologyEx(skin_mask, cv2.MORPH_OPEN, np.ones((4, 4), np.uint8))
+
+    return skin_mask
+
+@jit(nopython=True)
+def calc_histograms(r_channel, g_channel, b_channel, n_bins=64):
+    hist_r, bins_r = np.histogram(r_channel.flatten(), bins=n_bins, range=(0, 1))
+    hist_g, bins_g = np.histogram(g_channel.flatten(), bins=n_bins, range=(0, 1))
+    hist_b, bins_b = np.histogram(b_channel.flatten(), bins=n_bins, range=(0, 1))
+
+    return bins_b, bins_g, bins_r, hist_b, hist_g, hist_r
+
+
+@jit(nopython=True)
+def calc_quartiles(bins, hist):
+    # calculate the cumulative sum of the histogram counts
+    cumulative_counts = np.cumsum(hist)
+
+    # calculate the total count of elements in the histogram
+    total_count = cumulative_counts[-1]
+
+    # calculate the percentile indices corresponding to the quartiles
+    lower_quartile_index = np.argmax(cumulative_counts >= total_count * 0.25)
+    upper_quartile_index = np.argmax(cumulative_counts >= total_count * 0.75)
+    median_index = np.argmax(cumulative_counts >= total_count * 0.5)
+
+    # calculate the values of the quartiles using the bin edges
+    lower_quartile = bins[lower_quartile_index]
+    upper_quartile = bins[upper_quartile_index]
+    median = bins[median_index]
+
+    return median, lower_quartile, upper_quartile
+
+
+@jit(nopython=True)
+def calc_histogram_tresholds(hist_r, hist_g, hist_b, bins_r, bins_g, bins_b):
+    # find the bin with the maximum count for each channel.
+    # the first bin is neglected, as it contains all black pixels
+    # the last bin is neglected, as it contains all saturated white pixels
+    max_bin_r = np.argmax(hist_r[1:-1]) + 1
+    max_bin_g = np.argmax(hist_g[1:-1]) + 1
+    max_bin_b = np.argmax(hist_b[1:-1]) + 1
+
+    median_r, lower_quartile_r, upper_quartile_r = calc_quartiles(bins_r[1:-1], hist_r[1:-1])
+    median_g, lower_quartile_g, upper_quartile_g = calc_quartiles(bins_g[1:-1], hist_g[1:-1])
+    median_b, lower_quartile_b, upper_quartile_b = calc_quartiles(bins_b[1:-1], hist_b[1:-1])
+
+    # define the range to include the maximum bin and neighboring bins
+    bin_range = 2
+
+    # define the threshold range for skin color for each channel
+    threshold_range = 0
+
+    upper_threshold_r = upper_quartile_r
+    upper_threshold_g = upper_quartile_g
+    upper_threshold_b = upper_quartile_b
+
+    lower_threshold_r = max(bins_r[max(0, max_bin_r - bin_range)] - threshold_range, 0) \
+        if max_bin_r-bin_range < 0.1*len(bins_r) or bins_r[max_bin_r-bin_range] < lower_quartile_r else lower_quartile_r
+    lower_threshold_g = max(bins_g[max(0, max_bin_g - bin_range)] - threshold_range, 0) \
+        if max_bin_g-bin_range < 0.1*len(bins_g) or bins_g[max_bin_g-bin_range] < lower_quartile_g else lower_quartile_g
+    lower_threshold_b = max(bins_b[max(0, max_bin_b - bin_range)] - threshold_range, 0) \
+        if max_bin_b-bin_range < 0.1*len(bins_b) or bins_b[max_bin_b-bin_range] < lower_quartile_b else lower_quartile_b
+
+    return lower_threshold_r, upper_threshold_r, lower_threshold_g, upper_threshold_g, lower_threshold_b, upper_threshold_b
 
 
 def mask_eyes_out(frame, landmark_coords_xyz):  # results):
@@ -417,10 +511,8 @@ def interpolate_surface_normal_angles_scipy(centroid_coordinates, pixel_coordina
     x_coords, y_coords = centroid_coordinates[:, 0], centroid_coordinates[:, 1]
 
     # Perform griddata interpolation to obtain the interpolated angles
-    interpolated_angles = griddata((x_coords, y_coords), surface_normal_angles, (pixel_coordinates[:, 0], pixel_coordinates[:, 1]), method='linear')
-
     # The surface normal angles of invalid pixels outside of the face are set to zero
-    interpolated_angles[np.isnan(interpolated_angles)] = 0
+    interpolated_angles = griddata((x_coords, y_coords), surface_normal_angles, (pixel_coordinates[:, 0], pixel_coordinates[:, 1]), method='linear', fill_value=0)
 
     # Reshape the interpolated surface normal angles from flattened form into a 2D image like array with the width of (x_max-x_min)
     return np.reshape(interpolated_angles, (-1, x_max - x_min))
@@ -448,14 +540,14 @@ def plot_interpolation_heatmap(interpolated_surface_normal_angles, xx, yy):
     plt.imshow(interpolated_surface_normal_angles, cmap=cm1)  # , interpolation='nearest')    cmap='RdBu'    , cmap='seismic_r'
     create_colorbar(cm1, interpolated_surface_normal_angles)
 
-    # plot contour lines each 15° between 0° to 90°
+    # plot contour lines each 30° between 0° to 90°
     CS = plt.contour(xx, yy, interpolated_surface_normal_angles, np.arange(90, step=30), colors="k", linewidths=0.75)
-    plt.clabel(CS, inline=1, fontsize=10)
+    plt.clabel(CS, inline=1, fontsize=12)
 
     # plt.show()
     plt.pause(.1)
     plt.draw()
-    # plt.clf()
+    plt.clf()
 
 
 def create_colorbar(cm1, interpolated_surface_normal_angles):
@@ -480,7 +572,10 @@ def create_colorbar(cm1, interpolated_surface_normal_angles):
     cpick = cm.ScalarMappable(norm=cnorm, cmap=cm1)
     cpick.set_array([])
 
-    plt.colorbar(cpick, label="Surface normal angle (°)", ticks=v)
+    cbar = plt.colorbar(cpick, label="reflectance angle (°)", ticks=v)
+    cbar.set_label(label="reflectance angle (°)", size=14)  # , weight='bold')
+    ticklabs = cbar.ax.get_yticklabels()
+    cbar.ax.set_yticklabels(ticklabs, fontsize=14)
     plt.axis('off')
 
 
@@ -635,7 +730,7 @@ def get_bounding_box_coordinates_mesh_points(mesh_points):
     return x_min, y_min, x_max, y_max
 
 
-@jit(nopython=True)
+# @jit(nopython=True)
 def get_bounding_box_coordinates_filtered(img: np.ndarray, landmark_coords_xyz_history: np.ndarray, video_frame_count) -> (int, int, int, int):
     """
     Processes an image and returns the minimum and maximum x and y coordinates of the bounding box of detected face.
@@ -717,14 +812,17 @@ def apply_bounding_box(output_roi_face, bb_offset, x_max, x_min, y_max, y_min):
     # crop roi bounding_box out of image
     output_roi_face = output_roi_face[int(y_min_bb):int(y_max_bb), int(x_min_bb):int(x_max_bb)]
 
-    # OpenCV image translation matrix
-    M = np.float32([[1, 0, x_shift], [0, 1, y_shift]])
+    if x_shift != 0 or y_shift != 0:
+        # OpenCV image translation matrix
+        M = np.float32([[1, 0, x_shift], [0, 1, y_shift]])
 
-    # fill extracted ROI with black pixels if it's partly outside of image
-    # (= translate cropped output_roi_face by x_shift & y_shift)
-    shifted_roi_face = cv2.warpAffine(output_roi_face, M, (output_roi_face.shape[1], output_roi_face.shape[0]))
+        # fill extracted ROI with black pixels if it's partly outside of image
+        # (= translate cropped output_roi_face by x_shift & y_shift)
+        shifted_roi_face = cv2.warpAffine(output_roi_face, M, (output_roi_face.shape[1], output_roi_face.shape[0]))
 
-    return shifted_roi_face, x_max_bb, x_min_bb, y_max_bb, y_min_bb
+        return shifted_roi_face, x_max_bb, x_min_bb, y_max_bb, y_min_bb
+    else:
+        return output_roi_face, x_max_bb, x_min_bb, y_max_bb, y_min_bb
 
 
 def calc_centroids(img: np.ndarray) -> (int, int):
@@ -873,313 +971,3 @@ def moving_average(list_: List[tuple], window_size: int) -> (int, int):
     mov_avg_y = np.convolve(y, np.ones(window_size), 'valid') / window_size
 
     return int(mov_avg_x[-1]), int(mov_avg_y[-1])
-
-
-'''
-def calc_single_centroids(img: np.ndarray) -> (int, int):
-    """
-    source: https://learnopencv.com/find-center-of-blob-centroid-using-opencv-cpp-python/
-
-    :param img:
-    :return:
-    """
-    # convert image to grayscale image
-    gray_image = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-
-    # calculate moments of binary image
-    M = cv2.moments(gray_image)
-
-    # calculate x,y coordinate of center
-    if M["m00"] != 0:
-        cX = int(M["m10"] / M["m00"])
-        cY = int(M["m01"] / M["m00"])
-    else:
-        cX, cY = 0, 0
-
-    return cX, cY
-'''
-
-
-def generate_contour_points(flexible_list: List, landmarks: Collection, img_w: int, img_h: int) -> np.ndarray:
-    """Generates Contour Points in image coordinates based on a list of mediapipe landmark IDs, and parameters.
-    The list of landmarks might also contain multiple landmarks describing a single point.
-    For more information see implementation.
-
-    Args:
-        flexible_list (List): A list of: mediapipe landmark IDs defining a contour OR tuples of mediapipe landmarks and a weight OR ...
-        landmarks (Collection): A Collection of landmarks as provided by mediapipe. Must contain above IDs.
-        img_w (int): width of the image processed by mp
-        img_h (int): height of the image processed by mp
-
-    Returns:
-        np.ndarray: Array of 2d image coordinates describing a polygonal contour
-    """
-    contour_points = list()
-    for item in flexible_list:
-        if type(item) == int:
-            p = landmarks[item]
-            contour_points.append(np.multiply([p.x, p.y], [img_w, img_h]).astype(int))
-        elif type(item) == tuple and len(item) == 3:  # type=tuple and len=3
-            p1 = np.array([landmarks[item[0]].x, landmarks[item[0]].y])
-            p2 = np.array([landmarks[item[1]].x, landmarks[item[1]].y])
-            alpha = item[2]
-            p = np.multiply(p1 * alpha + p2 * (1 - alpha), [img_w, img_h]).astype(int)
-            contour_points.append(p)
-        else:
-            p1 = np.array([landmarks[item[0]].x, landmarks[item[0]].y])
-            p2 = np.array([landmarks[item[1]].x, landmarks[item[1]].y])
-            alpha = item[2]
-            diff = alpha * (p2 - p1)
-            p0 = p1 + item[3] * diff
-            p0[p0 > 1] = 1
-            p0[p0 < 0] = 0
-            p = np.multiply(p0, [img_w, img_h]).astype(int)
-            contour_points.append(p)
-
-    return np.array(contour_points)
-
-
-def mask_poly_contour(contour_points: np.ndarray, img_h: int, img_w: int) -> np.ndarray:
-    """Creates a binary Mask image based on polygon contour points (edges) in image coordinates
-       and the mask height and width
-
-    Args:
-        contour_points (np.ndarray): Edge points of contour
-        img_h (int): image height
-        img_w (int): image width
-
-    Returns:
-        np.ndarray: binary mask
-    """
-    mask = np.zeros((img_h, img_w), dtype=np.uint8)
-    cv2.fillPoly(mask, [contour_points], (255, 255, 255, cv2.LINE_AA))
-    return mask
-
-
-def get_contour_image(rgb_frame: np.ndarray, masks: List[np.ndarray]) -> np.ndarray:
-    """Computes contours of masks and plots contours on rgb image
-
-    Args:
-        rgb_frame (np.ndarray): WxH RGB image
-        masks (List[np.ndarray]): N WxH binary masks
-
-    Returns:
-        np.ndarray: WxH RGB image
-    """
-    rgb_frame_copy = rgb_frame.copy()
-    for _i, _mask in enumerate(masks):
-        contours, hierarchy = cv2.findContours(image=_mask, mode=cv2.RETR_TREE, method=cv2.CHAIN_APPROX_NONE)
-        if contours is not None and len(contours) > 0 and len(contours[0].shape) >= 3:
-            _main_contour = contours[0][:, 0, :]
-            center = np.mean(_main_contour, axis=0)
-            cv2.drawContours(image=rgb_frame_copy, contours=contours, contourIdx=-1, color=(0, 0, 255), thickness=2, lineType=cv2.LINE_AA)
-            cv2.putText(rgb_frame_copy, str(_i + 1), center.astype(int), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 3);
-    return rgb_frame_copy
-
-
-def plot_contours(rgb_frame: np.ndarray, masks: List[np.ndarray]):
-    rgb_frame_copy = get_contour_image(rgb_frame, masks)
-
-    # see the results
-    plt.figure()
-    plt.imshow(rgb_frame_copy)
-    plt.show()
-
-
-def plot_jitter(centroid_list, roi_name):
-    frame_counts = [x[0] for x in centroid_list]
-    x_val = [x[1][0] for x in centroid_list]
-    y_val = [x[1][1] for x in centroid_list]
-
-    # 3D plot
-    # ax = plt.figure("3D plot of centroid movement of " + roi_name).add_subplot(projection='3d')
-    # plt.title("3D plot of centroid movement of " + roi_name)
-    # ax.plot(frame_counts, x_val, zs=y_val, label='centroid movement in (x, y)')  # zdir='z',
-    # ax.set_xlabel("Number of frames")
-    # ax.set_ylabel("x coordinate (in pixels)")
-    # ax.set_zlabel("y coordinate (in pixels)")
-
-    # 2D plot
-    plt.figure("2D plot of centroid movement of " + roi_name)
-    plt.title("2D plot of centroid movement of " + roi_name)
-    plt.plot(frame_counts, x_val, 'b', label='x-coordinate')
-    plt.plot(frame_counts, y_val, 'r', label='y-coordinate')
-    plt.grid(axis='both', color='0.95')
-    plt.xlabel("Number of frames")
-    plt.ylabel("Number of pixels")
-    plt.legend()
-
-    '''
-    # operate smoothing on coordinates 
-    plt.figure("smoothed 2D plot of centroid movement of " + roi_name)
-    smoother_px = ConvolutionSmoother(window_len=10, window_type='ones')
-    smoother_py = ConvolutionSmoother(window_len=10, window_type='ones')
-    smoother_px.smooth(x_val)
-    smoother_py.smooth(y_val)
-
-    # plot smoothed positions in upper subplot
-    plt.plot(frame_counts, smoother_px.data[0], linestyle="-", label='px', color='blue')
-    plt.plot(frame_counts, smoother_py.data[0], linestyle="-", label='py', color='red')
-    plt.plot(frame_counts, smoother_px.smooth_data[0], linestyle="dashed", linewidth=2, color='blue')
-    plt.plot(frame_counts, smoother_py.smooth_data[0], linestyle="dashed", linewidth=2, color='red')
-
-    # plot standard deviation
-    # low_px, up_px = smoother_px.get_intervals('sigma_interval', n_sigma=3)  # generate intervals
-    # low_py, up_py = smoother_py.get_intervals('sigma_interval', n_sigma=3)
-    # plt.fill_between(frame_counts, low_px[0], up_px[0], alpha=0.3)
-    # plt.fill_between(frame_counts, low_py[0], up_py[0], alpha=0.3)
-
-    plt.xlabel("Number of frames")
-    plt.ylabel("Number of pixels")
-    plt.grid(axis='both', color='0.95')
-    plt.legend()
-    '''
-    # plt.ion()
-    plt.show(block=False)
-    plt.pause(.001)
-
-
-def plot_jitter_comparison(centroid_list, centroid_list_filtered, roi_name):
-    frame_counts = [x[0] for x in centroid_list]
-    x_val = [x[1][0] for x in centroid_list]
-    y_val = [x[1][1] for x in centroid_list]
-
-    frame_counts_filtered = [x[0] for x in centroid_list_filtered]
-    x_val_filtered = [x[1][0] for x in centroid_list_filtered]
-    y_val_filtered = [x[1][1] for x in centroid_list_filtered]
-
-    # 2D plot
-    plt.figure("2D plot of coordinate movement of " + roi_name)
-    plt.title("2D plot of coordinate movement of " + roi_name)
-    plt.plot(frame_counts, x_val, 'tab:blue', label='x-coordinate')
-    plt.plot(frame_counts_filtered, x_val_filtered, 'tab:orange', alpha=0.8, label='filtered x-coordinate')
-    plt.plot(frame_counts, y_val, 'tab:green', label='y-coordinate')
-    plt.plot(frame_counts_filtered, y_val_filtered, 'tab:red', alpha=0.8, label='filtered y-coordinate')
-    plt.grid(axis='both', color='0.95')
-    plt.xlabel("Number of frames")
-    plt.ylabel("Number of pixels")
-    plt.legend()
-
-    plt.show(block=False)
-    plt.pause(.001)
-
-
-# up to 15 overlapping masks
-def stack_masks(masks: List[np.ndarray]) -> np.ndarray:
-    """Produces an image containing all masks layers in bytes.
-    Max number of masks is 15 because 16 bit image is used
-
-    Args:
-        masks (List[np.ndarray]): N  WxH binary masks
-
-    Returns:
-        np.ndarray: WxH 16 bit image with N embedded masks
-    """
-    assert len(masks) < 16
-    multimask_image = np.zeros(masks[0].shape, dtype=np.uint16)
-    base = np.ones_like(masks[0])
-    for i, mask in enumerate(masks):
-        multimask_image = np.bitwise_or(np.left_shift(np.bitwise_and(base, mask), i), multimask_image)
-    return multimask_image
-
-
-def retain_mask_list(multi_mask_image: np.ndarray) -> List[np.ndarray]:
-    """ Takes 16bit image and retrieves binary masks. Assumes that each bit is one mask.
-
-    Args:
-        multi_mask_image (np.ndarray): 16 bit image containing N masks
-
-    Returns:
-        List[np.ndarray]: N binary images
-    """
-    mask_list = []
-    for i in range(16):
-        bitmask = np.left_shift(np.ones(multi_mask_image.shape, dtype=np.uint16), i)
-        mask = np.bitwise_and(multi_mask_image, bitmask)
-        out = np.zeros(multi_mask_image.shape, dtype=np.uint8)
-        out[mask > 0] = 255
-        if np.sum(out) == 0:
-            break
-        mask_list.append(out)
-    return mask_list
-
-
-def export_multimaskimage(multi_mask_image, filename: str):
-    if not filename.endswith('.png'):
-        filename += '.png'
-    cv2.imwrite(filename=filename, img=multi_mask_image)
-
-
-def plot_rgbt_signals(rgbt_signals, fs, face_regions_names=None):
-    fig, axs = plt.subplots(3, 1, figsize=(20, 15))
-    sig_len = rgbt_signals[0].shape[0]
-    time = np.arange(sig_len) / fs
-    for idx in range(len(rgbt_signals)):
-        axs[0].plot(time, rgbt_signals[idx][:, 0])
-    axs[0].set_ylabel('red')
-    for idx in range(len(rgbt_signals)):
-        axs[1].plot(time, rgbt_signals[idx][:, 1])
-    axs[1].set_ylabel('green')
-    for idx in range(len(rgbt_signals)):
-        axs[2].plot(time, rgbt_signals[idx][:, 2])
-    axs[2].set_ylabel('blue')
-    if face_regions_names is not None:
-        axs[2].legend(face_regions_names)
-    axs[2].set_xlabel('time / s')
-
-#####
-# WIP
-#####
-def calculate_skin_area(frame):
-    # Calculate the size of the skin area for each frame
-    # You can use color space transformations, thresholding, and contour detection
-    # to identify the skin area
-    # Return the size of the skin area
-
-    # Example:
-    # Convert the frame to the HSV color space
-    hsv_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-
-    # Define lower and upper bounds for skin color in HSV
-    lower_skin = np.array([0, 20, 70], dtype=np.uint8)
-    upper_skin = np.array([20, 255, 255], dtype=np.uint8)
-
-    # Create a mask to identify skin pixels
-    skin_mask = cv2.inRange(hsv_frame, lower_skin, upper_skin)
-
-    # Find contours of the skin area
-    contours, _ = cv2.findContours(skin_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-    # Calculate the size of the skin area
-    skin_area = 0
-    for contour in contours:
-        skin_area += cv2.contourArea(contour)
-
-    return skin_area
-
-#####
-# WIP
-#####
-def calculate_brightness_shadow_ratio(frame):
-    # Convert the frame to the LAB color space
-    lab_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
-
-    # Split the LAB image into channels
-    l_channel, a_channel, b_channel = cv2.split(lab_frame)
-
-    # Compute the minimum value of the L channel
-    l_min = np.min(l_channel)
-
-    # Calculate the mean brightness of the entire frame
-    frame_brightness = np.mean(l_channel)
-
-    # Define a threshold based on the minimum L value and frame brightness
-    threshold_value = l_min + (frame_brightness - l_min) * 0.3  # Adjust the factor as needed
-
-    # Create a mask for shadow pixels
-    shadow_mask = l_channel < threshold_value
-
-    # Calculate the ratio of shadow pixels to total pixels
-    shadow_ratio = np.mean(shadow_mask)
-
-    return frame_brightness, shadow_ratio
