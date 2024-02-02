@@ -1,53 +1,71 @@
-"""The dataloader for UBFC-rPPG dataset.
+"""
 
-Details for the UBFC-rPPG Dataset see https://sites.google.com/view/ybenezeth/ubfcrppg.
-If you use this dataset, please cite this paper:
-S. Bobbia, R. Macwan, Y. Benezeth, A. Mansouri, J. Dubois, "Unsupervised skin tissue segmentation for remote photoplethysmography", Pattern Recognition Letters, 2017.
+The dataloader for KISMED dataset.
+
 """
 import glob
 import os
-import re
-from multiprocessing import Pool, Process, Value, Array, Manager
 
 import cv2
 import numpy as np
 from dataset.data_loader.BaseLoader import BaseLoader
-from tqdm import tqdm
 
 
-class UBFCrPPGLoader(BaseLoader):
-    """The data loader for the UBFC-rPPG dataset."""
+class KISMEDLoader(BaseLoader):
+    """The data loader for the KISMED dataset."""
 
     def __init__(self, name, data_path, config_data):
-        """Initializes an UBFC-rPPG dataloader.
-            Args:
-                data_path(str): path of a folder which stores raw video and bvp data.
-                e.g. data_path should be "RawData" for below dataset structure:
-                -----------------
-                     RawData/
-                     |   |-- subject1/
-                     |       |-- vid.avi
-                     |       |-- ground_truth.txt
-                     |   |-- subject2/
-                     |       |-- vid.avi
-                     |       |-- ground_truth.txt
-                     |...
-                     |   |-- subjectn/
-                     |       |-- vid.avi
-                     |       |-- ground_truth.txt
-                -----------------
-                name(string): name of the dataloader.
-                config_data(CfgNode): data settings(ref:config.py).
-        """
+        """Initializes an KISMED dataloader.
+        Args:
+            data_path(str): path of a folder which stores raw video and bvp data.
+            e.g. data_path should be "RawData" for below dataset structure:
+            -----------------
+                 RawData/
+                 |   |-- p001/
+                 |       |-- v01/
+                 |          |-- video_RAW_RGBA.avi
+                 |          |-- BVP.csv
+                 |       |...
+                 |       |-- v12/
+                 |          |-- video_RAW_RGBA.avi
+                 |          |-- BVP.csv
+                 |...
+                 |   |-- p010/
+                 |       |-- v01/
+                 |          |-- video_RAW_RGBA.avi
+                 |          |-- BVP.csv
+                 |       |...
+                 |       |-- v12/
+                 |          |-- video_RAW_RGBA.avi
+                 |          |-- BVP.csv
+            -----------------
+            name(string): name of the dataloader.
+            config_data(CfgNode): data settings(ref:config.py).
+    """
         super().__init__(name, data_path, config_data)
 
     def get_raw_data(self, data_path):
-        """Returns data directories under the path(For UBFC-rPPG dataset)."""
-        data_dirs = glob.glob(data_path + os.sep + "subject*")
+        """Returns data directories under the path(For KISMED dataset)."""
+        data_dirs = glob.glob(data_path + os.sep + "*")
         if not data_dirs:
             raise ValueError(self.dataset_name + " data paths empty!")
-        dirs = [{"index": re.search(
-            'subject(\d+)', data_dir).group(0), "path": data_dir} for data_dir in data_dirs]
+        dirs = list()
+        for data_dir in data_dirs:
+            subject = os.path.split(data_dir)[-1]
+
+            sub_dirs = glob.glob(data_dir + os.sep + "*")
+
+            # iterate over 12 recorded scenarios
+            for sub_dir in sub_dirs:
+                index_scenario = os.path.split(sub_dir)[-1]
+
+                # use only "rotation" rPPG scenario
+                if "v11" not in index_scenario:
+                    continue
+                else:
+                    dirs.append({"index": '-'.join([subject, index_scenario]),
+                                 "path": sub_dir})  # ,
+                                 # "subject": subject})
         return dirs
 
     def split_raw_data(self, data_dirs, begin, end):
@@ -64,20 +82,20 @@ class UBFCrPPGLoader(BaseLoader):
 
         return data_dirs_new
 
+
     def preprocess_dataset_subprocess(self, data_dirs, config_preprocess, i, file_list_dict):
-        """ invoked by preprocess_dataset for multi_process."""
+        """Preprocesses the raw data."""
         filename = os.path.split(data_dirs[i]['path'])[-1]
         saved_filename = data_dirs[i]['index']
 
         # Read Frames
         if 'None' in config_preprocess.DATA_AUG:
             # Utilize dataset-specific function to read video
-            frames = self.read_video(
-                os.path.join(data_dirs[i]['path'],"vid.avi"))
+            frames = self.read_video(os.path.join(data_dirs[i]["path"], "video_RAW_RGBA.avi"))
         elif 'Motion' in config_preprocess.DATA_AUG:
             # Utilize general function to read video in .npy format
             frames = self.read_npy_video(
-                glob.glob(os.path.join(data_dirs[i]['path'],'*.npy')))
+                glob.glob(os.path.join(data_dirs[i]['path'], '*.npy')))
         else:
             raise ValueError(f'Unsupported DATA_AUG specified for {self.dataset_name} dataset! Received {config_preprocess.DATA_AUG}.')
 
@@ -85,10 +103,12 @@ class UBFCrPPGLoader(BaseLoader):
         if config_preprocess.USE_PSUEDO_PPG_LABEL:
             bvps = self.generate_pos_psuedo_labels(frames, fs=self.config_data.FS)
         else:
-            bvps = self.read_wave(
-                os.path.join(data_dirs[i]['path'],"ground_truth.txt"))
-            
+            bvps = self.read_wave(os.path.join(data_dirs[i]["path"], "BVP.csv"))
+
+        target_length = frames.shape[0]
+        bvps = BaseLoader.resample_ppg(bvps, target_length)
         frames_clips, bvps_clips = self.preprocess(frames, bvps, config_preprocess, saved_filename)
+
         input_name_list, label_name_list = self.save_multi_process(frames_clips, bvps_clips, saved_filename)
         file_list_dict[i] = input_name_list
 
@@ -112,5 +132,5 @@ class UBFCrPPGLoader(BaseLoader):
         with open(bvp_file, "r") as f:
             str1 = f.read()
             str1 = str1.split("\n")
-            bvp = [float(x) for x in str1[0].split()]
+            bvp = [float(x.split(",")[1]) for x in str1[1:-1]]
         return np.asarray(bvp)

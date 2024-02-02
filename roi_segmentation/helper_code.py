@@ -302,8 +302,7 @@ def resize_roi(img: np.ndarray, mesh_points: List[np.ndarray]) -> np.ndarray:
     # crop frame to square bounding box, centered at centroid
     cropped_img = img[int(cY - distance_max / 2):int(cY + distance_max / 2), int(cX - distance_max / 2):int(cX + distance_max / 2)]
 
-    # ToDo: untersuche die Auswirkung von verschiedenen Interpolationen (INTER_AREA, INTER_CUBIC, INTER_LINEAR)
-    resized_image = cv2.resize(cropped_img, (36, 36))
+    resized_image = cv2.resize(cropped_img, (72, 72))
 
     return resized_image
 
@@ -331,7 +330,6 @@ def check_acceptance(index, angle_degrees, angle_history, threshold=90):
 
     # Check if there are no zero values in angle_history[index] (occurs at first initialization)
     # and count how many past angle values are less than threshold + std_dev
-    # ToDo: verbessere past_appearance, sodass es die gleiche boolsche bedingung hat, wie die if-Abfrage zum Akzeptieren der Dreiecke
     if np.count_nonzero(angle_history[index] == 0) == 0:
         past_appearance = angle_history[index] < threshold + std_dev
         # or (np.count_nonzero(angle_history[index][:-1] == 0) == 0 and np.mean(angle_history[index][:-1]) < threshold + np.std(angle_history[index][:-1]))
@@ -360,7 +358,6 @@ def interpolate_surface_normal_angles_slow(centroid_coordinates, pixel_coordinat
         # Find the triangle that contains the current pixel using Delaunay triangulation.
         simplex_index = tri.find_simplex(pixel_coord)
 
-        # ToDo: bei überlappenden Pixeln wegen zu großen Kopfdrehungen nur die niedrigeren Winkel nehmen
         if simplex_index != -1:
             # Get the vertices of the triangle that contains the pixel.
             vertices = tri.simplices[simplex_index]

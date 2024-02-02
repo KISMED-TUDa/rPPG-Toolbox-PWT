@@ -65,6 +65,19 @@ class MMPDLoader(BaseLoader):
             mat_dirs = os.listdir(data_dir)
             for mat_dir in mat_dirs:
                 index = mat_dir.split('_')[-1].split('.')[0]
+
+                # consider only Excercise scenario
+                # if index not in ['12', '13', '14', '15']:
+                #     continue
+
+                # consider only stationary scenarios
+                # if index not in ['0', '4', '8', '16']:
+                #     continue
+
+                # consider only rotation scenarios
+                if index not in ['1', '5', '9', '17']:
+                    continue
+
                 dirs.append({'index': index, 
                              'path': data_dir+os.sep+mat_dir,
                              'subject': subject})
@@ -117,7 +130,7 @@ class MMPDLoader(BaseLoader):
         frames = (np.round(frames * 255)).astype(np.uint8)
         target_length = frames.shape[0]
         bvps = BaseLoader.resample_ppg(bvps, target_length)
-        frames_clips, bvps_clips = self.preprocess(frames, bvps, config_preprocess)
+        frames_clips, bvps_clips = self.preprocess(frames, bvps, config_preprocess, saved_filename)
 
         input_name_list, label_name_list = self.save_multi_process(frames_clips, bvps_clips, saved_filename)
         file_list_dict[i] = input_name_list

@@ -52,10 +52,17 @@ class PURELoader(BaseLoader):
             raise ValueError(self.dataset_name + " data paths empty!")
         dirs = list()
         for data_dir in data_dirs:
-            subject_trail_val = os.path.split(data_dir)[-1].replace('-', '')
-            index = int(subject_trail_val)
-            subject = int(subject_trail_val[0:2])
-            dirs.append({"index": index, "path": data_dir, "subject": subject})
+
+            if ".json" in data_dir:
+                continue
+            # take only medium rotation scenario into account
+            # elif data_dir[-2:] != "06":
+            #     continue
+            else:
+                subject_trail_val = os.path.split(data_dir)[-1].replace('-', '')
+                index = int(subject_trail_val)
+                subject = int(subject_trail_val[0:2])
+                dirs.append({"index": index, "path": data_dir, "subject": subject})
         return dirs
 
     def split_raw_data(self, data_dirs, begin, end):
@@ -106,7 +113,7 @@ class PURELoader(BaseLoader):
         if 'None' in config_preprocess.DATA_AUG:
             # Utilize dataset-specific function to read video
             frames = self.read_video(
-                os.path.join(data_dirs[i]['path'], filename, ""))
+                os.path.join(data_dirs[i]['path'], ""))
         elif 'Motion' in config_preprocess.DATA_AUG:
             # Utilize general function to read video in .npy format
             frames = self.read_npy_video(
@@ -119,11 +126,11 @@ class PURELoader(BaseLoader):
             bvps = self.generate_pos_psuedo_labels(frames, fs=self.config_data.FS)
         else:
             bvps = self.read_wave(
-                os.path.join(data_dirs[i]['path'], "{0}.json".format(filename)))
+                os.path.join(data_dirs[i]['path'].split(filename)[0], "{0}.json".format(filename)))
 
         target_length = frames.shape[0]
         bvps = BaseLoader.resample_ppg(bvps, target_length)
-        frames_clips, bvps_clips = self.preprocess(frames, bvps, config_preprocess)
+        frames_clips, bvps_clips = self.preprocess(frames, bvps, config_preprocess, saved_filename)
         input_name_list, label_name_list = self.save_multi_process(frames_clips, bvps_clips, saved_filename)
         file_list_dict[i] = input_name_list
 

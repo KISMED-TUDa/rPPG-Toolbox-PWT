@@ -84,6 +84,11 @@ class VIPLHRv1Loader(BaseLoader):
             for sub_dir in sub_dirs:
                 index_scenario = os.path.split(sub_dir)[-1]
 
+                # consider only stationary scenario
+                # if index_scenario != "v1":
+                #     continue
+
+                # consider only motion scenario
                 if index_scenario != "v2":
                     continue
                 else:
@@ -164,7 +169,7 @@ class VIPLHRv1Loader(BaseLoader):
 
         target_length = frames.shape[0]
         bvps = BaseLoader.resample_ppg(bvps, target_length)
-        frames_clips, bvps_clips = self.preprocess(frames, bvps, config_preprocess)
+        frames_clips, bvps_clips = self.preprocess(frames, bvps, config_preprocess, saved_filename)
 
         input_name_list, label_name_list = self.save_multi_process(frames_clips, bvps_clips, saved_filename)
         file_list_dict[i] = input_name_list

@@ -64,15 +64,23 @@ class RLAPLoader(BaseLoader):
         for data_dir in data_dirs:
             subject = os.path.split(data_dir)[-1]
 
-            if subject[:2] == "p0":
-                if int(subject[1:4]) < 29:
-                    continue
+            # if subject[:2] == "p0" or subject[:2] == "P0":
+            #     if int(subject[1:4]) > 32:
+            #         continue
 
             sub_dirs = glob.glob(data_dir + os.sep + "*")
 
             # iterate over 13 recorded scenarios
             for sub_dir in sub_dirs:
                 index_scenario = os.path.split(sub_dir)[-1]
+
+                # use only the four rPPG scenarios
+                # if index_scenario not in ["R1", "R2", "R3", "R4"]:
+                #     continue
+
+                # use only "relaxed" rPPG scenario
+                #if "R1" not in index_scenario:
+                #    continue
 
                 # use only "Play a game" rPPG scenario
                 if "R3" not in index_scenario:
@@ -97,32 +105,6 @@ class RLAPLoader(BaseLoader):
 
         return data_dirs_new
 
-    '''
-    def preprocess_dataset(self, data_dirs, config_preprocess, begin, end):
-        """Preprocesses the raw data."""
-
-        # Read Video Frames
-        file_num = len(data_dirs)
-        for i in range(file_num):
-            frames = self.read_video(
-                os.path.join(
-                    data_dirs[i]["path"],
-                    "video.avi"))
-
-            # Read Labels
-            if config_preprocess.USE_PSUEDO_PPG_LABEL:
-                bvps = self.generate_pos_psuedo_labels(frames, fs=self.config_data.FS)
-            else:
-                bvps = self.read_wave(
-                    os.path.join(
-                        data_dirs[i]["path"],
-                        "wave.csv"))
-
-            target_length = frames.shape[0]
-            bvps = BaseLoader.resample_ppg(bvps, target_length)
-            frames_clips, bvps_clips = self.preprocess(frames, bvps, config_preprocess)
-            self.preprocessed_data_len += self.save(frames_clips, bvps_clips, data_dirs[i]["index"])
-    '''
 
     def preprocess_dataset_subprocess(self, data_dirs, config_preprocess, i, file_list_dict):
         """Preprocesses the raw data."""
@@ -148,7 +130,7 @@ class RLAPLoader(BaseLoader):
 
         target_length = frames.shape[0]
         bvps = BaseLoader.resample_ppg(bvps, target_length)
-        frames_clips, bvps_clips = self.preprocess(frames, bvps, config_preprocess)
+        frames_clips, bvps_clips = self.preprocess(frames, bvps, config_preprocess, saved_filename)
 
         input_name_list, label_name_list = self.save_multi_process(frames_clips, bvps_clips, saved_filename)
         file_list_dict[i] = input_name_list

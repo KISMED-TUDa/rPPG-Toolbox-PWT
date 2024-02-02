@@ -56,37 +56,33 @@ class COHFACELoader(BaseLoader):
         dirs = list()
         for data_dir in data_dirs:
             for i in range(4):
+                # use only the first two well illuminated rPPG scenarios
+                # if i > 1:
+                #     continue
+                # use only the last two dark scenarios
+                # if i <= 1:
+                #     continue
+                # else:
                 subject = os.path.split(data_dir)[-1]
                 dirs.append({"index": int('{0}0{1}'.format(subject, i)),
                              "path": os.path.join(data_dir, str(i))})
         return dirs
 
-    '''
-    def preprocess_dataset(self, data_dirs, config_preprocess, begin, end):
-        """Preprocesses the raw data."""
 
-        # Read Video Frames
+    def split_raw_data(self, data_dirs, begin, end):
+        """Returns a subset of data dirs, split with begin and end values."""
+        if begin == 0 and end == 1:  # return the full directory if begin == 0 and end == 1
+            return data_dirs
+
         file_num = len(data_dirs)
-        for i in range(file_num):
-            frames = self.read_video(
-                os.path.join(
-                    data_dirs[i]["path"],
-                    "data.avi"))
+        choose_range = range(int(begin * file_num), int(end * file_num))
+        data_dirs_new = []
 
-            # Read Labels
-            if config_preprocess.USE_PSUEDO_PPG_LABEL:
-                bvps = self.generate_pos_psuedo_labels(frames, fs=self.config_data.FS)
-            else:
-                bvps = self.read_wave(
-                        os.path.join(
-                        data_dirs[i]["path"],
-                        "data.hdf5"))
-            
-            target_length = frames.shape[0]
-            bvps = BaseLoader.resample_ppg(bvps, target_length)
-            frames_clips, bvps_clips = self.preprocess(frames, bvps, config_preprocess)
-            self.preprocessed_data_len += self.save(frames_clips, bvps_clips, data_dirs[i]["index"])
-    '''
+        for i in choose_range:
+            data_dirs_new.append(data_dirs[i])
+
+        return data_dirs_new
+
 
     def preprocess_dataset_subprocess(self, data_dirs, config_preprocess, i, file_list_dict):
         """Preprocesses the raw data."""
@@ -96,7 +92,7 @@ class COHFACELoader(BaseLoader):
         # Read Frames
         if 'None' in config_preprocess.DATA_AUG:
             # Utilize dataset-specific function to read video
-            frames = self.read_video(os.path.join(data_dirs[i]["path"], "video.avi"))
+            frames = self.read_video(os.path.join(data_dirs[i]["path"], "data.avi"))
         elif 'Motion' in config_preprocess.DATA_AUG:
             # Utilize general function to read video in .npy format
             frames = self.read_npy_video(
@@ -108,11 +104,11 @@ class COHFACELoader(BaseLoader):
         if config_preprocess.USE_PSUEDO_PPG_LABEL:
             bvps = self.generate_pos_psuedo_labels(frames, fs=self.config_data.FS)
         else:
-            bvps = self.read_wave(os.path.join(data_dirs[i]["path"], "wave.csv"))
+            bvps = self.read_wave(os.path.join(data_dirs[i]["path"], "data.hdf5"))
 
         target_length = frames.shape[0]
         bvps = BaseLoader.resample_ppg(bvps, target_length)
-        frames_clips, bvps_clips = self.preprocess(frames, bvps, config_preprocess)
+        frames_clips, bvps_clips = self.preprocess(frames, bvps, config_preprocess, saved_filename)
 
         input_name_list, label_name_list = self.save_multi_process(frames_clips, bvps_clips, saved_filename)
         file_list_dict[i] = input_name_list
@@ -127,7 +123,7 @@ class COHFACELoader(BaseLoader):
         while (success):
             frame = cv2.cvtColor(np.array(frame), cv2.COLOR_BGR2RGB)
             frame = np.asarray(frame)
-            frame[np.isnan(frame)] = 0  # TODO: maybe change into avg
+            frame[np.isnan(frame)] = 0
             frames.append(frame)
             success, frame = VidObj.read()
 
