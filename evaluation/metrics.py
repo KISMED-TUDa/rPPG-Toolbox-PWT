@@ -3,6 +3,7 @@ import pandas as pd
 import torch
 from evaluation.post_process import *
 from tqdm import tqdm
+from evaluation.BlandAltmanPy import BlandAltman
 
 
 def read_label(dataset):
@@ -49,6 +50,7 @@ def calculate_metrics(predictions, labels, config):
     predict_hr_peak_all = list()
     gt_hr_peak_all = list()
     SNR_all = list()
+    print("Calculating metrics!")
     for index in tqdm(predictions.keys(), ncols=80):
         prediction = _reform_data_from_dict(predictions[index])
         label = _reform_data_from_dict(labels[index])
@@ -62,8 +64,8 @@ def calculate_metrics(predictions, labels, config):
             window_frame_size = video_frame_size
 
         for i in range(0, len(prediction), window_frame_size):
-            pred_window = prediction[i:i+window_frame_size]
-            label_window = label[i:i+window_frame_size]
+            pred_window = prediction[i:i + window_frame_size]
+            label_window = label[i:i + window_frame_size]
 
             if len(pred_window) < 9:
                 print(f"Window frame size of {len(pred_window)} is smaller than minimum pad length of 9. Window ignored!")
@@ -76,21 +78,30 @@ def calculate_metrics(predictions, labels, config):
                 diff_flag_test = True
             else:
                 raise ValueError("Unsupported label type in testing!")
-            
+
             if config.INFERENCE.EVALUATION_METHOD == "peak detection":
                 gt_hr_peak, pred_hr_peak, SNR = calculate_metric_per_video(
-                    pred_window, label_window, diff_flag=diff_flag_test, fs=config.TEST.DATA.FS, hr_method='Peak')
+                        pred_window, label_window, diff_flag=diff_flag_test, fs=config.TEST.DATA.FS, hr_method='Peak')
                 gt_hr_peak_all.append(gt_hr_peak)
                 predict_hr_peak_all.append(pred_hr_peak)
                 SNR_all.append(SNR)
             elif config.INFERENCE.EVALUATION_METHOD == "FFT":
                 gt_hr_fft, pred_hr_fft, SNR = calculate_metric_per_video(
-                    pred_window, label_window, diff_flag=diff_flag_test, fs=config.TEST.DATA.FS, hr_method='FFT')
+                        pred_window, label_window, diff_flag=diff_flag_test, fs=config.TEST.DATA.FS, hr_method='FFT')
                 gt_hr_fft_all.append(gt_hr_fft)
                 predict_hr_fft_all.append(pred_hr_fft)
                 SNR_all.append(SNR)
             else:
                 raise ValueError("Inference evaluation method name wrong!")
+
+    # Filename ID to be used in any results files (e.g., Bland-Altman plots) that get saved
+    if config.TOOLBOX_MODE == 'train_and_test':
+        filename_id = config.TRAIN.MODEL_FILE_NAME
+    elif config.TOOLBOX_MODE == 'only_test':
+        model_file_root = config.INFERENCE.MODEL_PATH.split("/")[-1].split(".pth")[0]
+        filename_id = model_file_root + "_" + config.TEST.DATA.DATASET
+    else:
+        raise ValueError('Metrics.py evaluation only supports train_and_test and only_test!')
 
     if config.INFERENCE.EVALUATION_METHOD == "FFT":
         gt_hr_fft_all = np.array(gt_hr_fft_all)
@@ -108,12 +119,13 @@ def calculate_metrics(predictions, labels, config):
                 print("FFT RMSE (FFT Label): {0} +/- {1}".format(RMSE_FFT, standard_error))
             elif metric == "MAPE":
                 MAPE_FFT = np.mean(np.abs((predict_hr_fft_all - gt_hr_fft_all) / gt_hr_fft_all)) * 100
-                standard_error = np.std(np.abs((predict_hr_fft_all - gt_hr_fft_all) / gt_hr_fft_all)) / np.sqrt(num_test_samples) * 100
+                standard_error = np.std(np.abs((predict_hr_fft_all - gt_hr_fft_all) / gt_hr_fft_all)) / np.sqrt(
+                    num_test_samples) * 100
                 print("FFT MAPE (FFT Label): {0} +/- {1}".format(MAPE_FFT, standard_error))
             elif metric == "Pearson":
                 Pearson_FFT = np.corrcoef(predict_hr_fft_all, gt_hr_fft_all)
                 correlation_coefficient = Pearson_FFT[0][1]
-                standard_error = np.sqrt((1 - correlation_coefficient**2) / (num_test_samples - 2))
+                standard_error = np.sqrt((1 - correlation_coefficient ** 2) / (num_test_samples - 2))
                 print("FFT Pearson (FFT Label): {0} +/- {1}".format(correlation_coefficient, standard_error))
             elif metric == "SNR":
                 SNR_FFT = np.mean(SNR_all)
@@ -121,6 +133,34 @@ def calculate_metrics(predictions, labels, config):
                 print("FFT SNR (FFT Label): {0} +/- {1} (dB)".format(SNR_FFT, standard_error))
             elif "AU" in metric:
                 pass
+            elif "BA" in metric:
+                compare = BlandAltman(gt_hr_fft_all, predict_hr_fft_all, config, averaged=True)
+                compare.scatter_plot(
+                        x_label='Referenzherzrate (BPM)',
+                        y_label='Vorhergesagte Herzrate (BPM)',
+                        show_legend=True, figure_size=(5, 5),
+                        the_title=f'{filename_id}_Peak_BlandAltman_ScatterPlot',
+                        file_name=f'{filename_id}_Peak_BlandAltman_ScatterPlot.pdf')
+                compare.difference_plot(
+                        x_label='Differenz zwischen vorhergesagter und Referenzherzrate (BPM)', # 'Difference between rPPG HR and GT PPG HR [bpm]',
+                        y_label='Mittelwert aus vorhergesagter und Referenzherzrate (BPM)',
+                        show_legend=True, figure_size=(5, 5),
+                        the_title=f'{filename_id}_Peak_BlandAltman_DifferencePlot',
+                        file_name=f'{filename_id}_Peak_BlandAltman_DifferencePlot.pdf')
+            elif metric == "Accuracy":
+                predict_hr_fft_all = np.array(predict_hr_fft_all)
+                gt_hr_fft_all = np.array(gt_hr_fft_all)
+
+                # calculate absolute difference between the arrays
+                abs_diff = np.abs(predict_hr_fft_all - gt_hr_fft_all)
+
+                # calculate the maximum allowed difference (currently: 2 bpm like the accuracy of a fingerclip PPG)
+                max_allowed_diff = 2
+
+                # check how much elements have an absolute difference less than the maximum allowed difference
+                correct_predictions = abs_diff <= max_allowed_diff
+                Accuracy = 100 * np.sum(correct_predictions) / num_test_samples
+                print("FFT Accuracy (FFT Label): {0}".format(Accuracy))
             else:
                 raise ValueError("Wrong Test Metric Type")
     elif config.INFERENCE.EVALUATION_METHOD == "peak detection":
@@ -139,12 +179,13 @@ def calculate_metrics(predictions, labels, config):
                 print("PEAK RMSE (Peak Label): {0} +/- {1}".format(RMSE_PEAK, standard_error))
             elif metric == "MAPE":
                 MAPE_PEAK = np.mean(np.abs((predict_hr_peak_all - gt_hr_peak_all) / gt_hr_peak_all)) * 100
-                standard_error = np.std(np.abs((predict_hr_peak_all - gt_hr_peak_all) / gt_hr_peak_all)) / np.sqrt(num_test_samples) * 100
+                standard_error = np.std(np.abs((predict_hr_peak_all - gt_hr_peak_all) / gt_hr_peak_all)) / np.sqrt(
+                    num_test_samples) * 100
                 print("PEAK MAPE (Peak Label): {0} +/- {1}".format(MAPE_PEAK, standard_error))
             elif metric == "Pearson":
                 Pearson_PEAK = np.corrcoef(predict_hr_peak_all, gt_hr_peak_all)
                 correlation_coefficient = Pearson_PEAK[0][1]
-                standard_error = np.sqrt((1 - correlation_coefficient**2) / (num_test_samples - 2))
+                standard_error = np.sqrt((1 - correlation_coefficient ** 2) / (num_test_samples - 2))
                 print("PEAK Pearson (Peak Label): {0} +/- {1}".format(correlation_coefficient, standard_error))
             elif metric == "SNR":
                 SNR_PEAK = np.mean(SNR_all)
@@ -152,6 +193,34 @@ def calculate_metrics(predictions, labels, config):
                 print("FFT SNR (FFT Label): {0} +/- {1} (dB)".format(SNR_PEAK, standard_error))
             elif "AU" in metric:
                 pass
+            elif "BA" in metric:
+                compare = BlandAltman(gt_hr_peak_all, predict_hr_peak_all, config, averaged=True)
+                compare.scatter_plot(
+                        x_label='Referenzherzrate (BPM)',
+                        y_label='Vorhergesagte Herzrate (BPM)',
+                        show_legend=True, figure_size=(5, 5),
+                        the_title=f'{filename_id}_Peak_BlandAltman_ScatterPlot',
+                        file_name=f'{filename_id}_Peak_BlandAltman_ScatterPlot.pdf')
+                compare.difference_plot(
+                        x_label='Differenz zwischen vorhergesagter und Referenzherzrate (BPM)', # 'Difference between rPPG HR and GT PPG HR [bpm]',
+                        y_label='Mittelwert aus vorhergesagter und Referenzherzrate (BPM)',
+                        show_legend=True, figure_size=(5, 5),
+                        the_title=f'{filename_id}_Peak_BlandAltman_DifferencePlot',
+                        file_name=f'{filename_id}_Peak_BlandAltman_DifferencePlot.pdf')
+            elif metric == "Accuracy":
+                gt_hr_peak_all = np.array(gt_hr_peak_all)
+                gt_hr_peak_all = np.array(gt_hr_peak_all)
+
+                # calculate absolute difference between the arrays
+                abs_diff = np.abs(predict_hr_peak_all - gt_hr_peak_all)
+
+                # Calculate the maximum allowed difference (currently: 2 bpm like the accuracy of a fingerclip PPG)
+                max_allowed_diff = 2
+
+                # Check how much elements have an absolute difference less than the maximum allowed difference
+                correct_predictions = abs_diff <= max_allowed_diff
+                Accuracy = 100 * np.sum(correct_predictions) / num_test_samples
+                print("PEAK Accuracy (Peak Label): {0}".format(Accuracy))
             else:
                 raise ValueError("Wrong Test Metric Type")
     else:
