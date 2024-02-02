@@ -151,7 +151,12 @@ if __name__ == "__main__":
         print(config.UNSUPERVISED, end='\n\n')
         print(config.INFERENCE, end='\n\n')
 
-    logging_path = config.UNSUPERVISED.DATA.CACHED_PATH
+    if config.TOOLBOX_MODE == "train_and_test":
+        logging_path = config.TRAIN.DATA.CACHED_PATH
+    elif config.TOOLBOX_MODE == "only_test":
+        logging_path = config.TRAIN.DATA.CACHED_PATH
+    elif config.TOOLBOX_MODE == "unsupervised_method":
+        logging_path = config.UNSUPERVISED.DATA.CACHED_PATH
     if not os.path.exists(logging_path):
         # try:
         os.makedirs(logging_path)
@@ -207,9 +212,13 @@ if __name__ == "__main__":
             train_loader = data_loader.COHFACELoader.COHFACELoader
         elif config.TRAIN.DATA.DATASET == "RLAP":
             train_loader = data_loader.RLAPLoader.RLAPLoader
+        elif config.TRAIN.DATA.DATASET == "KISMED":
+            train_loader = data_loader.KISMEDLoader.KISMEDLoader
         else:
             raise ValueError("Unsupported dataset! Currently supporting UBFC-rPPG, PURE, MMPD, \
-                             SCAMPS, BP4D+ (Normal and BigSmall preprocessing), UBFC-PHYS, VIPL-HR-V1, COHFACE and RLAP.")
+                             SCAMPS, BP4D+ (Normal and BigSmall preprocessing), UBFC-PHYS, VIPL-HR-V1, COHFACE, RLAP \
+                             and KISMED.")
+
 
         # Create and initialize the train dataloader given the correct toolbox mode,
         # a supported dataset name, and a valid dataset paths
@@ -221,7 +230,7 @@ if __name__ == "__main__":
                 config_data=config.TRAIN.DATA)
             data_loader_dict['train'] = DataLoader(
                 dataset=train_data_loader,
-                num_workers=16,
+                num_workers=4,
                 batch_size=config.TRAIN.BATCH_SIZE,
                 shuffle=True,
                 worker_init_fn=seed_worker,
@@ -251,11 +260,14 @@ if __name__ == "__main__":
             valid_loader = data_loader.COHFACELoader.COHFACELoader
         elif config.VALID.DATA.DATASET == "RLAP":
             valid_loader = data_loader.RLAPLoader.RLAPLoader
+        elif config.VALID.DATA.DATASET == "KISMED":
+            valid_loader = data_loader.KISMEDLoader.KISMEDLoader
         elif config.VALID.DATA.DATASET is None and not config.TEST.USE_LAST_EPOCH:
             raise ValueError("Validation dataset not specified despite USE_LAST_EPOCH set to False!")
         else:
             raise ValueError("Unsupported dataset! Currently supporting UBFC-rPPG, PURE, MMPD, \
-                             SCAMPS, BP4D+ (Normal and BigSmall preprocessing), UBFC-PHYS, VIPL-HR-V1, COHFACE and RLAP.")
+                             SCAMPS, BP4D+ (Normal and BigSmall preprocessing), UBFC-PHYS, VIPL-HR-V1, COHFACE, RLAP \
+                             and KISMED.")
         
         # Create and initialize the valid dataloader given the correct toolbox mode,
         # a supported dataset name, and a valid dataset path
@@ -266,7 +278,7 @@ if __name__ == "__main__":
                 config_data=config.VALID.DATA)
             data_loader_dict["valid"] = DataLoader(
                 dataset=valid_data,
-                num_workers=16,
+                num_workers=4,
                 batch_size=config.TRAIN.BATCH_SIZE,  # batch size for val is the same as train
                 shuffle=False,
                 worker_init_fn=seed_worker,
@@ -297,9 +309,12 @@ if __name__ == "__main__":
             test_loader = data_loader.COHFACELoader.COHFACELoader
         elif config.TEST.DATA.DATASET == "RLAP":
             test_loader = data_loader.RLAPLoader.RLAPLoader
+        elif config.TEST.DATA.DATASET == "KISMED":
+            test_loader = data_loader.KISMEDLoader.KISMEDLoader
         else:
             raise ValueError("Unsupported dataset! Currently supporting UBFC-rPPG, PURE, MMPD, \
-                             SCAMPS, BP4D+ (Normal and BigSmall preprocessing), UBFC-PHYS, VIPL-HR-V1, COHFACE and RLAP.")
+                             SCAMPS, BP4D+ (Normal and BigSmall preprocessing), UBFC-PHYS, VIPL-HR-V1, COHFACE, RLAP \
+                             and KISMED.")
         
         if config.TOOLBOX_MODE == "train_and_test" and config.TEST.USE_LAST_EPOCH:
             print("Testing uses last epoch, validation dataset is not required.", end='\n\n')
@@ -313,7 +328,7 @@ if __name__ == "__main__":
                 config_data=config.TEST.DATA)
             data_loader_dict["test"] = DataLoader(
                 dataset=test_data,
-                num_workers=16,
+                num_workers=4,
                 batch_size=config.INFERENCE.BATCH_SIZE,
                 shuffle=False,
                 worker_init_fn=seed_worker,
@@ -342,9 +357,11 @@ if __name__ == "__main__":
             unsupervised_loader = data_loader.COHFACELoader.COHFACELoader
         elif config.UNSUPERVISED.DATA.DATASET == "RLAP":
             unsupervised_loader = data_loader.RLAPLoader.RLAPLoader
+        elif config.UNSUPERVISED.DATA.DATASET == "KISMED":
+            unsupervised_loader = data_loader.KISMEDLoader.KISMEDLoader
         else:
             raise ValueError("Unsupported dataset! Currently supporting UBFC-rPPG, PURE, MMPD, \
-                             SCAMPS, BP4D+, UBFC-PHYS, VIPL-HR-V1, COHFACE and RLAP.")
+                             SCAMPS, BP4D+, UBFC-PHYS, VIPL-HR-V1, COHFACE, RLAP and KISMED.")
         
         unsupervised_data = unsupervised_loader(
             name="unsupervised",
