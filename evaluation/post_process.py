@@ -1,7 +1,7 @@
 """The post processing files for caluclating heart rate using FFT or peak detection.
 The file also  includes helper funcs such as detrend, mag2db etc.
 """
-
+import matplotlib.pyplot as plt
 import numpy as np
 import scipy
 import scipy.io
@@ -25,12 +25,14 @@ def _detrend(input_signal, lambda_value):
     D = spdiags(diags_data, diags_index,
                 (signal_length - 2), signal_length).toarray()
     detrended_signal = np.dot(
-        (H - np.linalg.inv(H + (lambda_value ** 2) * np.dot(D.T, D))), input_signal)
+            (H - np.linalg.inv(H + (lambda_value ** 2) * np.dot(D.T, D))), input_signal)
     return detrended_signal
+
 
 def mag2db(mag):
     """Convert magnitude to db."""
     return 20. * np.log10(mag)
+
 
 def _calculate_fft_hr(ppg_signal, fs=60, low_pass=0.75, high_pass=2.5):
     """Calculate heart rate based on PPG using Fast Fourier transform (FFT)."""
@@ -43,11 +45,13 @@ def _calculate_fft_hr(ppg_signal, fs=60, low_pass=0.75, high_pass=2.5):
     fft_hr = np.take(mask_ppg, np.argmax(mask_pxx, 0))[0] * 60
     return fft_hr
 
+
 def _calculate_peak_hr(ppg_signal, fs):
     """Calculate heart rate based on PPG using peak detection."""
     ppg_peaks, _ = scipy.signal.find_peaks(ppg_signal)
     hr_peak = 60 / (np.mean(np.diff(ppg_peaks)) / fs)
     return hr_peak
+
 
 def _calculate_SNR(pred_ppg_signal, hr_label, fs=30, low_pass=0.75, high_pass=2.5):
     """Calculate SNR as the ratio of the area under the curve of the frequency spectrum around the first and second harmonics 
@@ -90,11 +94,12 @@ def _calculate_SNR(pred_ppg_signal, hr_label, fs=30, low_pass=0.75, high_pass=2.
     signal_power_rem = np.sum(pxx_remainder)
 
     # Calculate the SNR as the ratio of the areas
-    if not signal_power_rem == 0: # catches divide by 0 runtime warning 
+    if not signal_power_rem == 0:  # catches divide by 0 runtime warning
         SNR = mag2db((signal_power_hm1 + signal_power_hm2) / signal_power_rem)
     else:
         SNR = 0
     return SNR
+
 
 def calculate_metric_per_video(predictions, labels, fs=30, diff_flag=True, use_bandpass=True, hr_method='FFT'):
     """Calculate video-level HR and SNR"""
@@ -105,14 +110,22 @@ def calculate_metric_per_video(predictions, labels, fs=30, diff_flag=True, use_b
         predictions = _detrend(predictions, 100)
         labels = _detrend(labels, 100)
     if use_bandpass:
-        # bandpass filter between [0.75, 2.5] Hz
-        # equals [45, 150] beats per min
-        [b, a] = butter(1, [0.75 / fs * 2, 2.5 / fs * 2], btype='bandpass')
+        # bandpass filter between [0.5, 4.16] Hz
+        # equals [30, 250] beats per min
+        LPF = 30 / 60  # = 30 BPM
+        HPF = 250 / 60  # = 250 BPM
+        [b, a] = butter(1, [LPF / fs * 2, HPF / fs * 2], btype='bandpass')
+
         predictions = scipy.signal.filtfilt(b, a, np.double(predictions))
         labels = scipy.signal.filtfilt(b, a, np.double(labels))
     if hr_method == 'FFT':
-        hr_pred = _calculate_fft_hr(predictions, fs=fs)
-        hr_label = _calculate_fft_hr(labels, fs=fs)
+        LPF = 30 / 60  # = 30 BPM
+        HPF = 250 / 60  # = 250 BPM
+        hr_pred = _calculate_fft_hr(predictions, fs=fs, low_pass=LPF, high_pass=HPF)
+        hr_label = _calculate_fft_hr(labels, fs=fs, low_pass=LPF, high_pass=HPF)
+
+        # plot_fft(labels, predictions, sample_rate=fs, title='FFT of ground truth and predicted BVP signal')
+
     elif hr_method == 'Peak':
         hr_pred = _calculate_peak_hr(predictions, fs=fs)
         hr_label = _calculate_peak_hr(labels, fs=fs)
@@ -120,3 +133,222 @@ def calculate_metric_per_video(predictions, labels, fs=30, diff_flag=True, use_b
         raise ValueError('Please use FFT or Peak to calculate your HR.')
     SNR = _calculate_SNR(predictions, hr_label, fs=fs)
     return hr_label, hr_pred, SNR
+
+
+"""
+Functions to calculate SDNN and RMSSD. Currently unused in project.
+"""
+def calculate_sdnn_and_rmssd(pred_signal, gt_signal, fs):
+    """
+    Calculate SDNN (Standard Deviation of NN intervals) and RMSSD (Root Mean Square of Successive Differences)
+    values of predicted and ground truth BVP signal
+
+    Args:
+    - pred_signal: List or array containing predicted BVP signal
+    - gt_signal: List or array containing ground truth BVP signal
+    - fs: Sample rate of the video
+
+    Returns:
+    - SDNN and RMSSD values of predicted and ground truth BVP signal
+    """
+    intervals_pred_seconds, intervals_gt_seconds = _calculate_IBI_in_seconds(pred_signal, gt_signal, fs)
+
+    intervals_pred = intervals_pred_seconds * 1000
+    intervals_gt = intervals_gt_seconds * 1000
+
+    if len(intervals_pred) > 2:
+        sdnn_pred = np.std(intervals_pred, ddof=1)
+        sdnn_gt = np.std(intervals_gt, ddof=1)
+        rmssd_pred = np.sqrt(np.mean(np.square(np.diff(intervals_pred))))
+        rmssd_gt = np.sqrt(np.mean(np.square(np.diff(intervals_gt))))
+    else:
+        sdnn_pred = np.nan
+        sdnn_gt = np.nan
+        rmssd_pred = np.nan
+        rmssd_gt = np.nan
+
+    # if sdnn_pred > 100:
+    #     plot_bvp_with_peaks(gt_signal, pred_signal, fs=fs, title='Tatsächliche und vorhergesagte BVP Signale')
+
+    #    if np.isnan(sdnn_pred) or np.isnan(sdnn_gt) or np.isnan(rmssd_pred) or np.isnan(rmssd_gt):
+    #        plot_bvp_with_peaks(gt_signal, pred_signal, fs=fs, title='Tatsächliche und vorhergesagte BVP Signale')
+
+    # print(f"{sdnn_pred}, {sdnn_gt}, {rmssd_pred}, {rmssd_gt}")
+
+    return sdnn_pred, sdnn_gt, rmssd_pred, rmssd_gt
+
+
+def _calculate_peak_HRs_of_equal_length(pred_signal, gt_signal, fs):
+    """Calculate heart rate based on PPG using peak detection."""
+    intervals_pred, intervals_gt = _calculate_IBI_in_seconds(pred_signal, gt_signal, fs)
+
+    hr_peak = 60 / np.mean(intervals_pred)
+    hr_peak_gt = 60 / np.mean(intervals_gt)
+    return hr_peak, hr_peak_gt
+
+
+def _calculate_IBI_in_seconds(pred_signal, gt_signal, fs):
+    """Calculate heart rate based on PPG using peak detection."""
+    # set the prominance (= height threshold) to one fourth of the difference between max and min value of signal
+    prominence_pred = 0.25 * (np.max(pred_signal) - np.min(pred_signal))
+    prominence_gt = 0.25 * (np.max(gt_signal) - np.min(gt_signal))
+
+    ppg_peaks_pred, _ = scipy.signal.find_peaks(pred_signal, prominence=prominence_pred)
+    ppg_peaks_gt, _ = scipy.signal.find_peaks(gt_signal, prominence=prominence_gt)
+
+    # reduce detection prominence limit, if there are less than three peaks or two IBI detected
+    if len(ppg_peaks_pred) < 3:
+        ppg_peaks_pred, _ = scipy.signal.find_peaks(pred_signal, prominence=0.03 * (np.max(pred_signal) - np.min(pred_signal)))
+        if len(ppg_peaks_pred) < 3:
+            ppg_peaks_pred, _ = scipy.signal.find_peaks(pred_signal)
+
+    # find lower amount of peaks in both signals and take only this amount of ppg_peaks into consideration
+    min_peak_count = min(len(ppg_peaks_pred), len(ppg_peaks_gt))
+
+    ppg_peaks_pred = ppg_peaks_pred[:min_peak_count]
+    ppg_peaks_gt = ppg_peaks_gt[:min_peak_count]
+
+    # Calculate peak-to-peak intervals with the unit: number of frames
+    intervals_pred = np.diff(ppg_peaks_pred)
+    intervals_gt = np.diff(ppg_peaks_gt)
+
+    # transform peak-to-peak intervals to the unit: seconds
+    intervals_pred = intervals_pred / fs
+    intervals_gt = intervals_gt / fs
+
+    return intervals_pred, intervals_gt
+
+
+def calculate_ibi_per_video(predictions, labels, fs=30, diff_flag=True, use_bandpass=True):
+    """Calculate video-level HR and inter beat intervals"""
+    if diff_flag:  # if the predictions and labels are 1st derivative of PPG signal.
+        predictions = _detrend(np.cumsum(predictions), 100)
+        labels = _detrend(np.cumsum(labels), 100)
+    else:
+        predictions = _detrend(predictions, 100)
+        labels = _detrend(labels, 100)
+    if use_bandpass:
+        # bandpass filter between [0.75, 2.5] Hz
+        # equals [45, 150] beats per min
+        # [b, a] = butter(1, [0.75 / fs * 2, 2.5 / fs * 2], btype='bandpass')
+
+        # bandpass filter between [0.5, 4.16] Hz
+        # equals [30, 250] beats per min
+        LPF = 30 / 60  # = 30 BPM
+        HPF = 250 / 60  # = 250 BPM
+        [b, a] = butter(1, [LPF / fs * 2, HPF / fs * 2], btype='bandpass')
+
+        predictions = scipy.signal.filtfilt(b, a, np.double(predictions))
+        labels = scipy.signal.filtfilt(b, a, np.double(labels))
+
+    mean_interval_pred, std_deviation_pred, hr_pred, hr_pred_std_dev, mean_interval_gt, std_deviation_gt, hr_gt, hr_gt_std_dev \
+        = calculate_inter_beat_intervals(predictions, labels, fs)
+
+    return mean_interval_pred, std_deviation_pred, hr_pred, hr_pred_std_dev, mean_interval_gt, std_deviation_gt, hr_gt, hr_gt_std_dev
+
+
+def calculate_inter_beat_intervals(data_pred, data_gt, fs):
+    intervals_pred, intervals_gt = _calculate_IBI_in_seconds(data_pred, data_gt, fs)
+
+    # Calculate mean and standard deviation of the intervals
+    mean_interval_pred = np.mean(intervals_pred)
+    std_deviation_pred = np.std(intervals_pred, ddof=1)  # SDNN value
+    rmssd_pred = np.sqrt(np.mean(np.square(np.diff(intervals_pred))))
+
+    mean_interval_gt = np.mean(intervals_gt)
+    std_deviation_gt = np.std(intervals_gt, ddof=1)  # SDNN value
+    rmssd_gt = np.sqrt(np.mean(np.square(np.diff(intervals_gt))))
+
+    hr_pred = 60 / mean_interval_pred
+    hr_pred_std_dev = (60 / (mean_interval_pred ** 2)) * std_deviation_pred
+    hr_gt = 60 / mean_interval_gt
+    hr_gt_std_dev = (60 / (mean_interval_gt ** 2)) * std_deviation_gt
+
+    return mean_interval_pred, std_deviation_pred, hr_pred, hr_pred_std_dev, mean_interval_gt, std_deviation_gt, hr_gt, hr_gt_std_dev
+
+
+def plot_bvp_with_peaks(data_gt, data_pred, fs=30, title='Tatsächliche und vorhergesagte BVP Signale'):
+    # set the font to Charter
+    font = {'family': 'serif', 'serif': ['Charter'], 'size': 12}
+    plt.rc('font', **font)
+
+    # set the prominance (= height threshold) to one fourth of the difference between max and min value of signal
+    prominence_pred = 0.25 * (np.max(data_pred) - np.min(data_pred))
+    prominence_gt = 0.25 * (np.max(data_gt) - np.min(data_gt))
+
+    ppg_peaks_pred, _ = scipy.signal.find_peaks(data_pred, prominence=prominence_pred)
+    ppg_peaks_gt, _ = scipy.signal.find_peaks(data_gt, prominence=prominence_gt)
+
+    # reduce detection prominence limit, if there are less than three peaks or two IBI detected
+    if len(ppg_peaks_pred) < 3:
+        ppg_peaks_pred, _ = scipy.signal.find_peaks(data_pred, prominence=0.03 * (np.max(data_pred) - np.min(data_pred)))
+        if len(ppg_peaks_pred) < 3:
+            ppg_peaks_pred, _ = scipy.signal.find_peaks(data_pred)
+
+    # find lower amount of peaks in both signals and take only this amount of ppg_peaks into consideration
+    min_peak_count = min(len(ppg_peaks_pred), len(ppg_peaks_gt))
+
+    ppg_peaks_pred = ppg_peaks_pred[:min_peak_count]
+    ppg_peaks_gt = ppg_peaks_gt[:min_peak_count]
+
+    plt.figure(figsize=(8, 6))
+    time = np.arange(len(data_gt)) / fs
+
+    plt.plot(time, data_gt, 'tab:blue', label='Tatsächliches BVP Signal')
+    plt.plot(time[ppg_peaks_gt], data_gt[ppg_peaks_gt], "kx")
+
+    plt.plot(time, data_pred, 'tab:orange', label=('Vorhergesagtes BVP Signal'))
+    plt.plot(time[ppg_peaks_pred], data_pred[ppg_peaks_pred], "rx")
+    # Add a vertical line at the peak frequency
+    # plt.axvline(x=peak_frequency, color='red', linestyle='--', label=f'Peak Frequency: {peak_frequency:.2f} Hz ({60*peak_frequency:.2f} BPM)')
+    plt.title(title)
+    plt.xlabel('Zeit (s)')
+    plt.ylabel('Amplitude')
+    plt.grid(True)
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_fft(data_gt, data_pred, sample_rate=30, title='FFT of ground truth and predicted BVP signal'):
+    fft_result_gt = np.fft.fft(data_gt)
+    freqs_gt = np.fft.fftfreq(len(fft_result_gt), 1 / sample_rate)
+
+    fft_result_pred = np.fft.fft(data_pred)
+    freqs_pred = np.fft.fftfreq(len(fft_result_pred), 1 / sample_rate)
+
+    # find the index of positive frequencies
+    positive_indices_gt = np.where(freqs_gt > 0)
+    positive_frequencies_gt = freqs_gt[positive_indices_gt]
+    positive_magnitude_gt = fft_result_gt[positive_indices_gt]
+
+    # find the index of positive frequencies
+    positive_indices_pred = np.where(freqs_pred > 0)
+    positive_frequencies_pred = freqs_pred[positive_indices_pred]
+    positive_magnitude_pred = fft_result_pred[positive_indices_pred]
+
+    # set the font to Charter
+    font = {'family': 'serif', 'serif': ['Charter'], 'size': 12}
+    plt.rc('font', **font)
+
+    # Find the index of the peak magnitude
+    magnitude = np.abs(positive_magnitude_pred)
+    peak_index = np.argmax(magnitude)
+    peak_frequency = freqs_pred[peak_index]
+
+    plt.figure(figsize=(8, 6))
+    plt.plot(positive_frequencies_gt, np.abs(positive_magnitude_gt), 'tab:blue', label='FFT of ground truth BVP signal')
+    plt.plot(positive_frequencies_pred, np.abs(positive_magnitude_pred), 'tab:orange',
+             label=('FFT of predicted BVP signal'))
+    # add a vertical line at the peak frequency
+    plt.axvline(x=peak_frequency, color='red', linestyle='--',
+                label=f'Peak Frequency: {peak_frequency:.2f} Hz ({60 * peak_frequency:.2f} BPM)')
+    # plt.xscale('log')
+    plt.yscale('log')
+    plt.title(title)
+    plt.xlabel('Frequency (Hz)')
+    plt.ylabel('Magnitude')
+    plt.grid(True)
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
