@@ -1,14 +1,14 @@
 BASE: ['']
 TOOLBOX_MODE: "only_test"      # "train_and_test"  or "only_test"
 TEST:
-  METRICS: ['MAE','RMSE','MAPE','Pearson', 'SNR']
-  USE_LAST_EPOCH: True                      # to use provided validation dataset to find the best epoch, should be false
+  METRICS: ['MAE', 'RMSE', 'MAPE', 'Pearson', 'SNR', 'BA']
+  USE_LAST_EPOCH: False                      # to use provided validation dataset to find the best epoch, should be false
   DATA:
     INFO:
-      LIGHT: [1, 2, 3]  # 1 - LED-Low, 2 - LED-high, 3 - Incandescent, 4 - Nature
-      MOTION: [1] # 1 - Stationary, 2 - Rotation, 3 - Talking, 4 - Walking
-      EXERCISE: [2] # 1 - True, 2 - False
-      SKIN_COLOR: [3] # Fitzpatrick Scale Skin Types - 3, 4, 5, 6
+      LIGHT: [1, 2, 3, 4]  # 1 - LED-Low, 2 - LED-high, 3 - Incandescent, 4 - Nature
+      MOTION: [1, 2, 3, 4] # 1 - Stationary, 2 - Rotation, 3 - Talking, 4 - Walking
+      EXERCISE: [1, 2] # 1 - True, 2 - False
+      SKIN_COLOR: [3, 4, 5, 6] # Fitzpatrick Scale Skin Types - 3, 4, 5, 6
       GENDER: [1, 2]  # 1 - Male, 2 - Female
       GLASSER: [1, 2] # 1 - True, 2 - False
       HAIR_COVER: [1, 2] # 1 - True, 2 - False
@@ -29,6 +29,7 @@ TEST:
       CHUNK_LENGTH: 180
       CROP_FACE:
         DO_CROP_FACE: True
+        BACKEND: 'HC'    # HC for Haar Cascade, RF for RetinaFace
         USE_LARGE_FACE_BOX: True
         LARGE_BOX_COEF: 1.5
         DETECTION:
@@ -41,7 +42,7 @@ TEST:
 DEVICE: cuda:0
 NUM_OF_GPU_TRAIN: 1
 LOG:
-  PATH: runs/exp
+  PATH: runs/exp/UBFC_MMPD_tscan
 MODEL:
   DROP_RATE: 0.2
   NAME: Tscan
@@ -51,6 +52,6 @@ INFERENCE:
   BATCH_SIZE: 4
   EVALUATION_METHOD: "FFT"        # "FFT" or "peak detection"
   EVALUATION_WINDOW:
-    USE_SMALLER_WINDOW: False        # Change this if you'd like an evaluation window smaller than the test video length
-    WINDOW_SIZE: 10        # In seconds
-  MODEL_PATH:   "./final_model_release/UBFC-rPPG_TSCAN.pth"
+    USE_SMALLER_WINDOW: True        # Change this if you'd like an evaluation window smaller than the test video length
+    WINDOW_SIZE: 30        # In seconds
+  MODEL_PATH:   "runs/exp_final/UBFC_UBFC_PURE_tscan/UBFC-rPPG_SizeW72_SizeH72_ClipLength180_DataAugNone_ROI_segmentationFalse_Angle_threshold66_ROI_mode-optimal_roi_Use_convex_hullFalse_Constrain_roiFalse_Outside_roiFalse/PreTrainedModels/UBFC_UBFC_PURE_tscan_Epoch27.pth"
