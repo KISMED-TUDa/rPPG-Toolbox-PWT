@@ -9,7 +9,7 @@ UNSUPERVISED:
     DO_PREPROCESS: True
     DATA_FORMAT: NDHWC
     DATA_PATH: "m:/"       # Raw dataset path, need to be updated
-    CACHED_PATH: "g:/rppg_toolbox/PreprocessedData/RLAP/filtered/"    # Processed dataset save path, need to be updated
+    CACHED_PATH: "g:/rppg_toolbox/PreprocessedData/RLAP/"    # Processed dataset save path, need to be updated
     EXP_DATA_NAME: ""
     BEGIN: 0.0
     END: 1.0
