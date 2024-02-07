@@ -5,12 +5,13 @@ TRAIN:
   EPOCHS: 30
   LR: 9e-3
   MODEL_FILE_NAME: MMPD_MMPD_UBFC_tscan
+  PLOT_LOSSES_AND_LR: True
   DATA:
     INFO:
-      LIGHT: [1, 2, 3]  # 1 - LED-Low, 2 - LED-high, 3 - Incandescent, 4 - Nature
-      MOTION: [1] # 1 - Stationary, 2 - Rotation, 3 - Talking, 4 - Walking
-      EXERCISE: [2] # 1 - True, 2 - False
-      SKIN_COLOR: [3] # Fitzpatrick Scale Skin Types - 3, 4, 5, 6
+      LIGHT: [1, 2, 3, 4]  # 1 - LED-Low, 2 - LED-high, 3 - Incandescent, 4 - Nature
+      MOTION: [1, 2] # 1 - Stationary, 2 - Rotation, 3 - Talking, 4 - Walking
+      EXERCISE: [1, 2] # 1 - True, 2 - False
+      SKIN_COLOR: [3,4,5,6] # Fitzpatrick Scale Skin Types - 3, 4, 5, 6
       GENDER: [1, 2]  # 1 - Male, 2 - Female
       GLASSER: [1, 2] # 1 - True, 2 - False
       HAIR_COVER: [1, 2] # 1 - True, 2 - False
@@ -31,6 +32,7 @@ TRAIN:
       CHUNK_LENGTH: 180
       CROP_FACE:
         DO_CROP_FACE: True
+        BACKEND: 'HC'    # HC for Haar Cascade, RF for RetinaFace
         USE_LARGE_FACE_BOX: True
         LARGE_BOX_COEF: 1.5
         DETECTION:
@@ -43,10 +45,10 @@ TRAIN:
 VALID:
   DATA:
     INFO:
-      LIGHT: [1, 2, 3]  # 1 - LED-Low, 2 - LED-high, 3 - Incandescent, 4 - Nature
-      MOTION: [1] # 1 - Stationary, 2 - Rotation, 3 - Talking, 4 - Walking
-      EXERCISE: [2] # 1 - True, 2 - False
-      SKIN_COLOR: [3] # Fitzpatrick Scale Skin Types - 3, 4, 5, 6
+      LIGHT: [1, 2, 3, 4]  # 1 - LED-Low, 2 - LED-high, 3 - Incandescent, 4 - Nature
+      MOTION: [1, 2] # 1 - Stationary, 2 - Rotation, 3 - Talking, 4 - Walking
+      EXERCISE: [1, 2] # 1 - True, 2 - False
+      SKIN_COLOR: [3,4,5,6] # Fitzpatrick Scale Skin Types - 3, 4, 5, 6
       GENDER: [1, 2]  # 1 - Male, 2 - Female
       GLASSER: [1, 2] # 1 - True, 2 - False
       HAIR_COVER: [1, 2] # 1 - True, 2 - False
@@ -67,6 +69,7 @@ VALID:
       CHUNK_LENGTH: 180
       CROP_FACE:
         DO_CROP_FACE: True
+        BACKEND: 'HC'    # HC for Haar Cascade, RF for RetinaFace
         USE_LARGE_FACE_BOX: True
         LARGE_BOX_COEF: 1.5
         DETECTION:
@@ -77,8 +80,8 @@ VALID:
         H: 72
         W: 72
 TEST:
-  METRICS: ['MAE','RMSE','MAPE','Pearson', 'SNR']
-  USE_LAST_EPOCH: True                      # to use provided validation dataset to find the best epoch, should be false
+  METRICS: ['MAE', 'RMSE', 'MAPE', 'Pearson', 'SNR', 'Accuracy', 'BA']
+  USE_LAST_EPOCH: False                      # to use provided validation dataset to find the best epoch, should be false
   DATA:
     FS: 30
     DATASET: UBFC-rPPG
@@ -96,6 +99,7 @@ TEST:
       CHUNK_LENGTH: 180
       CROP_FACE:
         DO_CROP_FACE: True
+        BACKEND: 'HC'    # HC for Haar Cascade, RF for RetinaFace
         USE_LARGE_FACE_BOX: True
         LARGE_BOX_COEF: 1.5
         DETECTION:
