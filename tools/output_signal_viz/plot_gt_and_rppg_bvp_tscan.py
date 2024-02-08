@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import sklearn.preprocessing
 
-# Processed dataset path, need to be updated to specified path in unsupervised_methods/unsupervised_predictor.py,
+# Processed dataset path, need to be updated to specified path in neural_methods/trainer/TscanTrainer.py
 # where the numpy arrays of time, GT BVP and predicted BVP get saved
 video_file = "/data/rPPG_dataset/processed_dataset"
 
