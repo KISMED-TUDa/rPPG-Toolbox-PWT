@@ -4,7 +4,7 @@ TRAIN:
   BATCH_SIZE: 4
   EPOCHS: 30
   LR: 9e-3
-  MODEL_FILE_NAME: UBFC_UBFC_PURE_tscan
+  MODEL_FILE_NAME: UBFC_UBFC_RLAP_tscan
   PLOT_LOSSES_AND_LR: True
   DATA:
     FS: 30
@@ -82,11 +82,11 @@ TEST:
   USE_LAST_EPOCH: False                     # to use provided validation dataset to find the best epoch, should be false
   DATA:
     FS: 30
-    DATASET: PURE
+    DATASET: RLAP
     DO_PREPROCESS: True                    # if first time, should be true
     DATA_FORMAT: NDCHW
-    DATA_PATH: "d:/Datasets/PURE/data/"                     # Raw dataset path, need to be updated
-    CACHED_PATH: "d:/rppg_toolbox/PreprocessedData_NN/PURE/"    # Processed dataset save path, need to be updated
+    DATA_PATH: 'k:/'       # Raw dataset path, need to be updated
+    CACHED_PATH: "d:/rppg_toolbox/PreprocessedData_NN/RLAP/"    # Processed dataset save path, need to be updated
     EXP_DATA_NAME: ""
     BEGIN: 0.0
     END: 1.0
@@ -117,7 +117,7 @@ TEST:
 DEVICE: cuda:0
 NUM_OF_GPU_TRAIN: 1
 LOG:
-  PATH: runs/exp_final/UBFC_UBFC_PURE_tscan
+  PATH: runs/exp_final/UBFC_UBFC_RLAP_tscan
 MODEL:
   DROP_RATE: 0.2
   NAME: Tscan
@@ -129,4 +129,4 @@ INFERENCE:
   EVALUATION_WINDOW:
     USE_SMALLER_WINDOW: True        # Change this if you'd like an evaluation window smaller than the test video length
     WINDOW_SIZE: 30        # In seconds
-  MODEL_PATH:   ""
+  MODEL_PATH:   "runs/exp_final/UBFC_UBFC_PURE_tscan/UBFC-rPPG_SizeW72_SizeH72_ClipLength180_DataAugNone_ROI_segmentationFalse_Angle_threshold66_ROI_mode-optimal_roi_Use_convex_hullFalse_Constrain_roiFalse_Outside_roiFalse/PreTrainedModels/UBFC_UBFC_PURE_tscan_Epoch27.pth"
