@@ -29,10 +29,15 @@ import mediapipe as mp
 from scipy.signal import iirfilter, filtfilt
 from roi_segmentation import DEFINITION_FACEMASK
 from roi_segmentation.helper_code import calc_triangle_centroid_coordinates, check_acceptance, extract_mask_outside_roi, \
-    apply_bounding_box
+    apply_bounding_box, skin_segmentation, generate_face_mask
 from roi_segmentation.helper_code import segment_roi, apply_convex_hull, mask_eyes_out, calc_centroid_between_roi, count_pixel_area, \
     interpolate_surface_normal_angles_scipy, get_bounding_box_coordinates, get_bounding_box_coordinates_mesh_points, get_bounding_box_coordinates_filtered
 from roi_segmentation.surface_normal_vector.helper_functions import get_triangle_coords, calculate_surface_normal_angle, get_triangle_indices_from_angle
+
+import time
+from retinaface import RetinaFace   # Source code: https://github.com/serengil/retinaface
+
+
 
 
 class BaseLoader(Dataset):
@@ -231,6 +236,7 @@ class BaseLoader(Dataset):
             frame_clips(np.array): processed video data by frames
             bvps_clips(np.array): processed bvp (ppg) labels by frames
         """
+
         # perform ROI segmentation based on defined threshold for reflectance angles
         frames = self.roi_segmentation_for_video(frames, saved_filename,
                                        config_preprocess.ROI_SEGMENTATION.DO_SEGMENTATION,
@@ -240,10 +246,66 @@ class BaseLoader(Dataset):
                                        config_preprocess.ROI_SEGMENTATION.CONSTRAIN_ROI,
                                        config_preprocess.ROI_SEGMENTATION.USE_OUTSIDE_ROI)
 
+        if "Standardized_ROI_segmentation" in config_preprocess.DATA_TYPE:
+            # perform ROI segmentation to extract the whole face from video
+            frames_whole_face = self.roi_segmentation_for_video(frames, saved_filename,
+                                                         use_roi_segmentation=True,
+                                                         threshold=90,
+                                                         roi_mode="optimal_roi",
+                                                         use_convex_hull=False,
+                                                         constrain_roi=False,
+                                                         use_outside_roi=False,
+                                                         apply_heatmap=False)
+
+
+            # perform ROI segmentation to extract forehead and cheeks ROI
+            frames_roi = self.roi_segmentation_for_video(frames, saved_filename,
+                                                         use_roi_segmentation=True,
+                                                         threshold=90,
+                                                         roi_mode="optimal_roi",
+                                                         use_convex_hull=True,
+                                                         constrain_roi=True,
+                                                         use_outside_roi=False,
+                                                         apply_heatmap=False)
+
+        if "Standardized_ROI_segmentation_heatmap" in config_preprocess.DATA_TYPE:
+            # perform ROI segmentation to extract the whole face from video
+            frames_whole_face = self.roi_segmentation_for_video(frames, saved_filename,
+                                                         use_roi_segmentation=True,
+                                                         threshold=90,
+                                                         roi_mode="optimal_roi",
+                                                         use_convex_hull=False,
+                                                         constrain_roi=False,
+                                                         use_outside_roi=False,
+                                                         apply_heatmap=False)
+
+
+            # perform ROI segmentation to extract forehead and cheeks ROI
+            frames_roi = self.roi_segmentation_for_video(frames, saved_filename,
+                                                         use_roi_segmentation=True,
+                                                         threshold=90,
+                                                         roi_mode="optimal_roi",
+                                                         use_convex_hull=False,
+                                                         constrain_roi=True,
+                                                         use_outside_roi=False,
+                                                         apply_heatmap=True)
+
+        if "Standardized_FACE_segmentation" in config_preprocess.DATA_TYPE:
+            # perform ROI segmentation to extract the whole face from video
+            frames_whole_face = self.roi_segmentation_for_video(frames, saved_filename,
+                                                         use_roi_segmentation=True,
+                                                         threshold=90,
+                                                         roi_mode="optimal_roi",
+                                                         use_convex_hull=False,
+                                                         constrain_roi=False,
+                                                         use_outside_roi=False,
+                                                         apply_heatmap=False)
+
         # resize frames and crop for face region
         frames = self.crop_face_resize(
             frames,
             config_preprocess.CROP_FACE.DO_CROP_FACE,
+            config_preprocess.CROP_FACE.BACKEND,
             config_preprocess.CROP_FACE.USE_LARGE_FACE_BOX,
             config_preprocess.CROP_FACE.LARGE_BOX_COEF,
             config_preprocess.CROP_FACE.DETECTION.DO_DYNAMIC_DETECTION,
@@ -258,9 +320,23 @@ class BaseLoader(Dataset):
             if data_type == "Raw":
                 data.append(f_c)
             elif data_type == "DiffNormalized":
-                data.append(BaseLoader.diff_normalize_data(f_c))
+                if ("Standardized_ROI_segmentation" in config_preprocess.DATA_TYPE
+                        or "Standardized_FACE_segmentation" in config_preprocess.DATA_TYPE
+                        or "Standardized_ROI_segmentation_heatmap" in config_preprocess.DATA_TYPE):
+                    f_wface = frames_whole_face.copy()
+                    data.append(BaseLoader.diff_normalize_data(f_wface))
+                else:
+                    data.append(BaseLoader.diff_normalize_data(f_c))
             elif data_type == "Standardized":
                 data.append(BaseLoader.standardized_data(f_c))
+            elif data_type == "Standardized_ROI_segmentation":
+                f_roi = frames_roi.copy()
+                data.append(BaseLoader.standardized_data(f_roi))
+            elif data_type == "Standardized_ROI_segmentation_heatmap":
+                f_roi_heatmap = frames_roi.copy()
+                data.append(BaseLoader.standardized_data(f_roi_heatmap))
+            elif data_type == "Standardized_FACE_segmentation":
+                data.append(BaseLoader.standardized_data(f_wface))
             else:
                 raise ValueError("Unsupported data type!")
         data = np.concatenate(data, axis=-1)  # concatenate all channels
@@ -282,14 +358,15 @@ class BaseLoader(Dataset):
 
         return frames_clips, bvps_clips
 
-    def calculate_roi(self, image, threshold=90, roi_mode="optimal_roi", constrain_roi=True, use_convex_hull=True, use_outside_roi=False):
+    def calculate_roi(self, image, skin_segmentation_mask, threshold=90, roi_mode="optimal_roi", constrain_roi=True, use_convex_hull=True, use_outside_roi=False):
         """
          Calculates and extracts the region of interest (ROI) from an input image based on facial landmarks and their angles with respect to camera and surface normals.
          It uses the results from facial landmark detection to identify and extract triangles from the face mesh that fall below the specified angle threshold.
          The extracted triangles are returned as a list of sets of coordinates, which define the adaptive ROI.
          Additionally the function returns the binary mask images of the optimal ROI and the ROI outside of the optimal region.
 
-        :param image: The input image the facial landmarks were detected in and the adaptive ROI is to be calculated for.
+        :param image: The input image where the facial landmarks were detected in and the adaptive ROI is to be calculated for.
+        :param skin_segmentation_mask: The previously computed facial skin segmentation mask. Must have the same dimensions as the image.
         :param threshold:(int, optional, default=90): The angle threshold in degrees. Triangles with angles below this threshold will be included in the adaptive ROI.
         :param constrain_roi:(bool, optional, default=True): A flag indicating whether to constrain the adaptive ROI to a predefined set of optimal regions.
                                         If set to True, only triangles within the predefined regions will be considered.
@@ -401,6 +478,9 @@ class BaseLoader(Dataset):
         else:
             raise Exception("No valid roi_mode selected. Valid roi_mode are: 'optimal_roi', 'forehead', 'left_cheek', 'right_cheek'.")
 
+        if skin_segmentation_mask is not None:
+            mask_optimal_roi = cv2.bitwise_and(mask_optimal_roi, mask_optimal_roi, mask=skin_segmentation_mask)
+
         if constrain_roi and use_outside_roi:
             interpolated_surface_normal_angles = interpolate_surface_normal_angles_scipy(centroid_coordinates, pixel_coordinates, surface_normal_angles, x_min, x_max)
             mask_eyes = mask_eyes_out(mask_outside_roi, landmark_coords_xyz)
@@ -408,7 +488,7 @@ class BaseLoader(Dataset):
             mask_outside_roi = extract_mask_outside_roi(img_h, img_w, interpolated_surface_normal_angles, mask_optimal_roi, mask_eyes, x_min, y_min)
 
         # save pixel areas and mean angles of optimal ROIs in a csv file
-        if roi_mode == "optimal_roi":
+        if constrain_roi and roi_mode == "optimal_roi":
             global csv_writer
             csv_writer.writerow([video_frame_count,
                                  count_pixel_area(mask_optimal_roi + mask_outside_roi),
@@ -424,7 +504,179 @@ class BaseLoader(Dataset):
 
         return mesh_points_bounding_box_, mask_optimal_roi, mask_outside_roi
 
-    def low_pass_filter_landmarks(self, video_frames, fps):
+    def map_value_to_rgb(self, value):
+        """
+           Maps a given value within the range [0, 90] to an RGB tuple in the range [255, 255, 255] to [0, 0, 0].
+
+           Parameters:
+           - value (float): The input value to be mapped, should be within the range [0, 90].
+
+           Returns:
+           - tuple: An RGB tuple representing the mapped color, where each component is in the range [0, 255].
+           """
+        # Ensure the value is within the range [0, 90]
+        value = max(0, min(90, value))
+
+        # Convert the range from [0, 90] to [255, 0]
+        mapped_value = 255 - int((value / 60) * 255)
+
+        rgb_tuple = (mapped_value, mapped_value, mapped_value)
+
+        return rgb_tuple, mapped_value
+
+
+    def calculate_roi_heatmap(self, image, skin_segmentation_mask, threshold=90, roi_mode="optimal_roi", constrain_roi=True, use_convex_hull=True, use_outside_roi=False):
+        """
+         Calculates and extracts the region of interest (ROI) from an input image based on facial landmarks and their angles with respect to camera and surface normals.
+         It uses the results from facial landmark detection to identify and extract triangles from the face mesh that fall below the specified angle threshold.
+         The extracted triangles are returned as a list of sets of coordinates, which define the adaptive ROI.
+         Additionally the function returns the binary mask images of the optimal ROI and the ROI outside of the optimal region.
+
+        :param image: The input image where the facial landmarks were detected in and the adaptive ROI is to be calculated for.
+        :param skin_segmentation_mask: The previously computed facial skin segmentation mask. Must have the same dimensions as the image.
+        :param threshold:(int, optional, default=90): The angle threshold in degrees. Triangles with angles below this threshold will be included in the adaptive ROI.
+        :param constrain_roi:(bool, optional, default=True): A flag indicating whether to constrain the adaptive ROI to a predefined set of optimal regions.
+                                        If set to True, only triangles within the predefined regions will be considered.
+        :param use_outside_roi: (bool, optional, default=False): If True, calculate ROIs outside of the constrained ROI.
+        :return: tuple: A tuple containing the following elements:
+                - mesh_points_threshold_roi_ (list): List of sets of coordinates defining triangles within the optimal ROI that meet the angle threshold criteria and,
+                                                   if flag is set, are part of the optimal ROI.
+                - mesh_points_outside_roi (list): List of coordinates defining triangles outside of the optimal ROI.
+                - mask_threshold_roi (numpy.ndarray): A binary image mask indicating the optimal ROI.
+                - mask_outside_roi (numpy.ndarray): A binary image mask indicating the area outside the optimal ROI.
+
+        A list of sets of coordinates representing the triangles that meet the angle threshold criteria and, if flag is set, are part of the adaptive ROI.
+        """
+        img_h, img_w = image.shape[:2]
+
+        mesh_points_forehead = []
+        mesh_points_left_cheek = []
+        mesh_points_right_cheek = []
+        mask_optimal_roi = np.zeros((img_h, img_w), dtype=np.uint8)
+        mask_forehead_roi = np.zeros((img_h, img_w), dtype=np.uint8)
+        mask_left_cheek_roi = np.zeros((img_h, img_w), dtype=np.uint8)
+        mask_right_cheek_roi = np.zeros((img_h, img_w), dtype=np.uint8)
+        mask_outside_roi = np.zeros((img_h, img_w), dtype=np.uint8)
+
+        mean_angle_forehead = []
+        mean_angle_left_cheek = []
+        mean_angle_right_cheek = []
+
+        # define tesselation triangles contained in each roi
+        if constrain_roi:
+            forehead_roi = DEFINITION_FACEMASK.FOREHEAD_TESSELATION_LARGE
+            left_cheek_roi = DEFINITION_FACEMASK.LEFT_CHEEK_TESSELATION_LARGE
+            right_cheek_roi = DEFINITION_FACEMASK.RIGHT_CHEEK_TESSELATION_LARGE
+
+        # Extract filtered landmark xyz-coordinates from the detected face in video
+        landmark_coords_xyz = np.zeros((len(landmark_coords_xyz_history), 3))
+        for index, face_landmarks in enumerate(landmark_coords_xyz_history):
+            landmark_coords_xyz[index] = [face_landmarks[video_frame_count][0], face_landmarks[video_frame_count][1], face_landmarks[video_frame_count][2]]
+
+        # initialization for surface angle interpolation for all face pixels
+        x_min, x_max = int(landmark_coords_xyz[:, 0].min() * img_w), int(landmark_coords_xyz[:, 0].max() * img_w)
+        y_min, y_max = int(landmark_coords_xyz[:, 1].min() * img_h), int(landmark_coords_xyz[:, 1].max() * img_h)
+        xx, yy = np.meshgrid(np.arange(x_max - x_min), np.arange(y_max - y_min))
+
+        # image pixel coordinates for which to interpolate surface normal angles, each row is [x, y], starting from [0, 0] -> [img_w, img_h]
+        pixel_coordinates = np.column_stack((xx.ravel(), yy.ravel()))
+
+        # [x, y] coordinates of the triangle centroids
+        centroid_coordinates = np.zeros((len(DEFINITION_FACEMASK.FACE_MESH_TESSELATION), 2), dtype=np.int32)
+        # surface normal angles for each triangle centroid
+        surface_normal_angles = np.zeros(len(DEFINITION_FACEMASK.FACE_MESH_TESSELATION))
+
+        # Calculate angles between camera and surface normal vectors for whole face mesh tessellation
+        for index, triangle in enumerate(DEFINITION_FACEMASK.FACE_MESH_TESSELATION):
+            # calculate reflectance angle in degree
+            angle_degrees = calculate_surface_normal_angle(landmark_coords_xyz, triangle)
+
+            # calculate centroid coordinates of each triangle
+            triangle_centroid = np.mean(np.array([landmark_coords_xyz[i] for i in triangle]), axis=0)
+            centroid_coordinates[index] = calc_triangle_centroid_coordinates(triangle_centroid, img_w, img_h, x_min, y_min)
+
+            # for interpolation, the reflectance angle is calculated for each triangle and mapped to the triangles centroid
+            surface_normal_angles[index] = angle_degrees
+
+            # check acceptance of triangle to be below threshold and add it to the ROI mask
+            if constrain_roi:
+                # Extract the coordinates of the three landmarks of the triangle
+                triangle_coords = get_triangle_coords(image, landmark_coords_xyz, triangle)
+
+                _, mapped_grayscale_value = self.map_value_to_rgb(angle_degrees)
+
+                if triangle in forehead_roi:
+                    mesh_points_forehead.append(triangle_coords)  # necessary for bounding box
+                    if check_acceptance(index, angle_degrees, angle_history, threshold):
+                        cv2.fillConvexPoly(mask_forehead_roi, triangle_coords, (
+                                mapped_grayscale_value, mapped_grayscale_value, mapped_grayscale_value, cv2.LINE_AA))
+                        mean_angle_forehead.append(angle_degrees)
+                elif triangle in left_cheek_roi:
+                    mesh_points_left_cheek.append(triangle_coords)  # necessary for bounding box
+                    if check_acceptance(index, angle_degrees, angle_history, threshold):
+                        cv2.fillConvexPoly(mask_left_cheek_roi, triangle_coords, (
+                                mapped_grayscale_value, mapped_grayscale_value, mapped_grayscale_value, cv2.LINE_AA))
+                        mean_angle_left_cheek.append(angle_degrees)
+                elif triangle in right_cheek_roi:
+                    mesh_points_right_cheek.append(triangle_coords)  # necessary for bounding box
+                    if check_acceptance(index, angle_degrees, angle_history, threshold):
+                        cv2.fillConvexPoly(mask_right_cheek_roi, triangle_coords, (
+                                mapped_grayscale_value, mapped_grayscale_value, mapped_grayscale_value, cv2.LINE_AA))
+                        mean_angle_right_cheek.append(angle_degrees)
+            else:
+                # Extract the coordinates of the three landmarks of the triangle
+                triangle_coords = get_triangle_coords(image, landmark_coords_xyz, triangle)
+                if check_acceptance(index, angle_degrees, angle_history, threshold):
+                    cv2.fillConvexPoly(mask_outside_roi, triangle_coords, (255, 255, 255, cv2.LINE_AA))
+
+        if use_convex_hull:
+            mask_forehead_roi = apply_convex_hull(mask_forehead_roi)
+            mask_left_cheek_roi = apply_convex_hull(mask_left_cheek_roi)
+            mask_right_cheek_roi = apply_convex_hull(mask_right_cheek_roi)
+
+        # calculate pixel area of optimal_roi
+        if roi_mode == "optimal_roi":
+            mask_optimal_roi = mask_forehead_roi + mask_left_cheek_roi + mask_right_cheek_roi
+            mesh_points_bounding_box_ = mesh_points_forehead + mesh_points_left_cheek + mesh_points_right_cheek
+        elif roi_mode == "forehead":
+            mask_optimal_roi = mask_forehead_roi
+            mesh_points_bounding_box_ = mesh_points_forehead
+        elif roi_mode == "left_cheek":
+            mask_optimal_roi = mask_left_cheek_roi
+            mesh_points_bounding_box_ = mesh_points_left_cheek
+        elif roi_mode == "right_cheek":
+            mask_optimal_roi = mask_right_cheek_roi
+            mesh_points_bounding_box_ = mesh_points_right_cheek
+        else:
+            raise Exception("No valid roi_mode selected. Valid roi_mode are: 'optimal_roi', 'forehead', 'left_cheek', 'right_cheek'.")
+
+        if skin_segmentation_mask is not None:
+            mask_optimal_roi = cv2.bitwise_and(mask_optimal_roi, mask_optimal_roi, mask=skin_segmentation_mask)
+
+        if constrain_roi and use_outside_roi:
+            interpolated_surface_normal_angles = interpolate_surface_normal_angles_scipy(centroid_coordinates, pixel_coordinates, surface_normal_angles, x_min, x_max)
+            mask_eyes = mask_eyes_out(mask_outside_roi, landmark_coords_xyz)
+            # extract smallest interpolation angles and create new mask only including pixels with the same amount as mask_optimal_roi
+            mask_outside_roi = extract_mask_outside_roi(img_h, img_w, interpolated_surface_normal_angles, mask_optimal_roi, mask_eyes, x_min, y_min)
+
+        # save pixel areas and mean angles of optimal ROIs in a csv file
+        if constrain_roi and roi_mode == "optimal_roi":
+            global csv_writer
+            csv_writer.writerow([video_frame_count,
+                                 count_pixel_area(mask_optimal_roi + mask_outside_roi),
+                                 count_pixel_area(mask_optimal_roi),
+                                 count_pixel_area(mask_outside_roi),
+                                 count_pixel_area(mask_outside_roi) - count_pixel_area(mask_optimal_roi),
+                                 count_pixel_area(mask_forehead_roi),
+                                 count_pixel_area(mask_left_cheek_roi),
+                                 count_pixel_area(mask_right_cheek_roi),
+                                 round(np.average(mean_angle_forehead), 3),
+                                 round(np.average(mean_angle_left_cheek), 3),
+                                 round(np.average(mean_angle_right_cheek), 3)])
+
+        return mesh_points_bounding_box_, mask_optimal_roi, mask_outside_roi
+
+    def low_pass_filter_landmarks(self, video_frames, fps, confidence=0.5):
         mp_face_mesh = mp.solutions.face_mesh
 
         last_valid_coords = None  # Initialize a variable to store the last valid coordinates
@@ -432,11 +684,14 @@ class BaseLoader(Dataset):
         with mp_face_mesh.FaceMesh(
                 max_num_faces=1,
                 refine_landmarks=True,
-                min_detection_confidence=0.5,
-                min_tracking_confidence=0.5
+                min_detection_confidence=confidence,
+                min_tracking_confidence=confidence
         ) as face_mesh:
             for rgb_frame in video_frames:
-                rgb_frame = cv2.flip(rgb_frame, 1)
+                if confidence==0.5:
+                    rgb_frame = cv2.flip(rgb_frame, 1)
+                else:
+                    rgb_frame = rgb_frame
 
                 results = face_mesh.process(rgb_frame)
 
@@ -454,33 +709,33 @@ class BaseLoader(Dataset):
                         for index in np.arange(len(landmark_coords_xyz_history)):
                             landmark_coords_xyz_history[index].append(last_valid_coords)
 
-        # ToDo: untersuche Datensätze auf Frequenz der auftretenden Kopfrotationen, um Grenzfrequenz höher als die Rotationsfrequenz zu setzen,
-        #  damit die Bewegung nicht tiefpass gefiltert wird
-        # define lowpass filter with 2.9 Hz cutoff frequency
-        b, a = iirfilter(20, Wn=2.9, fs=fps, btype="low", ftype="butter")
+        # define lowpass filter with 3.5 Hz cutoff frequency
+        b, a = iirfilter(20, Wn=3.5, fs=fps, btype="low", ftype="butter")
 
         for idx in np.arange(478):
-            if len(landmark_coords_xyz_history[idx]) > 15:  # filter needs at least 15 values to work
-                # apply filter forward and backward using filtfilt
-                x_coords_lowpass_filtered = filtfilt(b, a, np.array([coords_xyz[0] for coords_xyz in landmark_coords_xyz_history[idx]]))
-                y_coords_lowpass_filtered = filtfilt(b, a, np.array([coords_xyz[1] for coords_xyz in landmark_coords_xyz_history[idx]]))
-                z_coords_lowpass_filtered = filtfilt(b, a, np.array([coords_xyz[2] for coords_xyz in landmark_coords_xyz_history[idx]]))
+            try:
+                if len(landmark_coords_xyz_history[idx]) > 15:  # filter needs at least 15 values to work
+                    # apply filter forward and backward using filtfilt
+                    x_coords_lowpass_filtered = filtfilt(b, a, np.array([coords_xyz[0] for coords_xyz in landmark_coords_xyz_history[idx]]))
+                    y_coords_lowpass_filtered = filtfilt(b, a, np.array([coords_xyz[1] for coords_xyz in landmark_coords_xyz_history[idx]]))
+                    z_coords_lowpass_filtered = filtfilt(b, a, np.array([coords_xyz[2] for coords_xyz in landmark_coords_xyz_history[idx]]))
 
-                landmark_coords_xyz_history[idx] = [(x_coords_lowpass_filtered[i], y_coords_lowpass_filtered[i], z_coords_lowpass_filtered[i]) for i in
-                                                    np.arange(0, len(x_coords_lowpass_filtered))]
+                    landmark_coords_xyz_history[idx] = [(x_coords_lowpass_filtered[i], y_coords_lowpass_filtered[i], z_coords_lowpass_filtered[i]) for i in
+                                                        np.arange(0, len(x_coords_lowpass_filtered))]
+            except ValueError:
+                landmark_coords_xyz_history[idx] = landmark_coords_xyz_history[idx]
 
         return np.array(landmark_coords_xyz_history, dtype=np.float64)
 
-    def roi_segmentation_for_video(self, video_frames, saved_filename, use_roi_segmentation, threshold=90, roi_mode="optimal_roi", use_convex_hull=True, constrain_roi=True, use_outside_roi=False):
+    def roi_segmentation_for_video(self, video_frames, saved_filename, use_roi_segmentation, threshold=90, roi_mode="optimal_roi", use_convex_hull=True, constrain_roi=True, use_outside_roi=False, apply_heatmap=False):
         if use_roi_segmentation:
 
             if roi_mode == "optimal_roi":
                 # Create a CSV file for storing pixel area data
+                csv_filename = f"./data/ROI_area_log_all_datasets/{self.cached_path.split('/')[-1]}/{roi_mode}_{saved_filename}.csv"
 
-                csv_filename = f"./data/ROI_area_log/{self.cached_path.split('/')[-1]}/{roi_mode}_{saved_filename}.csv"
-
-                if not os.path.exists(f"./data/ROI_area_log/{self.cached_path.split('/')[-1]}"):
-                    os.makedirs(f"./data/ROI_area_log/{self.cached_path.split('/')[-1]}")
+                if not os.path.exists(f"./data/ROI_area_log_all_datasets/{self.cached_path.split('/')[-1]}"):
+                    os.makedirs(f"./data/ROI_area_log_all_datasets/{self.cached_path.split('/')[-1]}")
 
                 csv_file = open(csv_filename, mode='w', newline='')
                 global csv_writer
@@ -489,9 +744,25 @@ class BaseLoader(Dataset):
                     ['Frame Number', 'Total Pixel Area', 'Optimal Pixel Area', 'Outside Pixel Area', 'Difference', 'Forehead', 'Left Cheek', 'Right Cheek',
                      'mean_angle_forehead', 'mean_angle_left_cheek', 'mean_angle_right_cheek'])
 
+
+            # Code only used for logging the code runtime and to create a runtime plot
+            if roi_mode == "optimal_roi":
+                # Create a CSV file for storing pixel area data
+                csv_filename_runtime = f"./data/runtime_log/{self.cached_path.split('/')[-1]}/{roi_mode}_{saved_filename}.csv"
+
+                if not os.path.exists(f"./data/runtime_log/{self.cached_path.split('/')[-1]}"):
+                    os.makedirs(f"./data/runtime_log/{self.cached_path.split('/')[-1]}")
+
+                csv_file_runtime = open(csv_filename_runtime, mode='w', newline='')
+                global csv_writer_runtime
+                csv_writer_runtime = csv.writer(csv_file_runtime)
+                csv_writer_runtime.writerow(
+                    ['start_time', 'runtime_since_start', 'runtime_for_frame'])
+
             mp_face_mesh = mp.solutions.face_mesh
 
-            fps = 30  # ToDo: config parameter verwenden
+            fps = self.config_data.FS
+
             frames = list()
             max_dim_roi = 0
 
@@ -502,42 +773,79 @@ class BaseLoader(Dataset):
             global angle_history
             angle_history = np.array([np.zeros(5) for _ in np.arange(len(DEFINITION_FACEMASK.FACE_MESH_TESSELATION))])
 
-            landmark_coords_xyz_history = self.low_pass_filter_landmarks(video_frames, fps)
+            confidence = 0.5
+            if self.config_data['DATASET'] == 'KISMED':
+                # these subjects need a lower detection confidence for mediapipe to work without detection errors
+                if "p009" in saved_filename or "p010" in saved_filename:
+                    confidence = 0.3
+
+            landmark_coords_xyz_history = self.low_pass_filter_landmarks(video_frames, fps, confidence)
 
             with mp_face_mesh.FaceMesh(
                     max_num_faces=1,
                     refine_landmarks=True,
-                    min_detection_confidence=0.5,
-                    min_tracking_confidence=0.5
+                    min_detection_confidence=confidence,
+                    min_tracking_confidence=confidence
             ) as face_mesh:
+                start_time = time.time()
                 for rgb_frame in video_frames:
-                    rgb_frame = cv2.flip(rgb_frame, 1)
+                    start_time_frame = time.time()
+
+                    if confidence == 0.5:
+                        rgb_frame = cv2.flip(rgb_frame, 1)
+                    else:
+                        # subjects p009 and p010 of KISMED dataset MUST NOT be NOT flipped for mediapipe to work without detection errors
+                        rgb_frame = rgb_frame
+
 
                     results = face_mesh.process(rgb_frame)
 
                     frame = cv2.cvtColor(np.array(rgb_frame), cv2.COLOR_RGB2BGR)
-
                     mask_roi = None
+                    output_roi_face = None
 
                     if results.multi_face_landmarks:
-                        # define mesh points of each ROI if mesh triangles are below threshold
+                        # skin segmentation
+                        perform_skin_segmentation = False
+
+                        if perform_skin_segmentation:
+                            for face_landmarks in results.multi_face_landmarks:
+                                # segment face region from camera frame
+                                face_mask = generate_face_mask(face_landmarks, frame)
+                                face_roi = cv2.bitwise_and(frame, frame, mask=face_mask)
+
+                                # histogram based skin segmentation of facial region
+                                skin_segmentation_mask = skin_segmentation(face_roi)
+                                frame = cv2.bitwise_and(face_roi, face_roi, mask=skin_segmentation_mask)
+                        else:
+                            skin_segmentation_mask = None
+
+                        # define mesh points and mask of each ROI if mesh triangles are below threshold
                         try:
-                            mesh_points_bounding_box_, mask_optimal_roi, mask_outside_roi = self.calculate_roi(frame,
-                                                                                                          threshold=threshold,
-                                                                                                          roi_mode=roi_mode,
-                                                                                                          constrain_roi=constrain_roi,
-                                                                                                          use_convex_hull=use_convex_hull,
-                                                                                                          use_outside_roi=use_outside_roi)
+                            if not apply_heatmap:
+                                mesh_points_bounding_box_, mask_optimal_roi, mask_outside_roi = self.calculate_roi(
+                                                                                        frame,
+                                                                                        skin_segmentation_mask,
+                                                                                        threshold=threshold,
+                                                                                        roi_mode=roi_mode,
+                                                                                        constrain_roi=constrain_roi,
+                                                                                        use_convex_hull=use_convex_hull,
+                                                                                        use_outside_roi=use_outside_roi)
+                            else:
+                                mesh_points_bounding_box_, mask_optimal_roi, mask_outside_roi = self.calculate_roi_heatmap(
+                                                                                        frame,
+                                                                                        skin_segmentation_mask,
+                                                                                        threshold=threshold,
+                                                                                        roi_mode=roi_mode,
+                                                                                        constrain_roi=constrain_roi,
+                                                                                        use_convex_hull=False,
+                                                                                        use_outside_roi=use_outside_roi)
                         except IndexError as ie:
-                            print("IndexError: " + str(video_frame_count))
+                            print(f"Index Error during processing subject {saved_filename}:  {str(video_frame_count)}")
                             print(str(ie))
 
                         mask_roi = mask_outside_roi if use_outside_roi else mask_optimal_roi + mask_outside_roi
 
-                        # try:
-                        #     mask_roi = mask_outside_roi if use_outside_roi else mask_optimal_roi + mask_outside_roi
-                        # except UnboundLocalError:
-                        #     pass
                         output_roi_face = cv2.copyTo(frame, mask_roi)
 
                         # crop frame to square bounding box. The margins are either the outermost mesh point coordinates or (filtered) landmark coordinates
@@ -548,33 +856,52 @@ class BaseLoader(Dataset):
                         else:
                             if constrain_roi:
                                 # Use outermost coordinates of mesh points of the active ROI
-                                x_min, y_min, x_max, y_max = get_bounding_box_coordinates_mesh_points(np.array(mesh_points_bounding_box_))
+                                if self.dataset_name == 'unsupervised':
+                                    x_min, y_min, x_max, y_max = get_bounding_box_coordinates_mesh_points(np.array(mesh_points_bounding_box_))
+                                else:
+                                    # when training a neural network, the bounding box needs to be applied to the whole face
+                                    # area and cannot be zoomed to the segmented ROI.
+                                    # This ensures, that the ROI segmented frames overlap with the frames of the whole face
+                                    x_min, y_min, x_max, y_max = get_bounding_box_coordinates_filtered(output_roi_face,
+                                                                                                   landmark_coords_xyz_history,
+                                                                                                   video_frame_count)
                             else:
                                 # Use filtered landmarks for a smoothed bounding box of the whole face during video processing
-                                x_min, y_min, x_max, y_max = get_bounding_box_coordinates_filtered(output_roi_face, landmark_coords_xyz_history, video_frame_count)
+                                x_min, y_min, x_max, y_max = get_bounding_box_coordinates_filtered(output_roi_face,
+                                                                                                   landmark_coords_xyz_history,
+                                                                                                   video_frame_count)
 
                         bb_offset = 2  # apply offset to the borders of bounding box
-                        output_roi_face, x_max_bb, x_min_bb, y_max_bb, y_min_bb = apply_bounding_box(output_roi_face,
-                                                                                                     bb_offset,
-                                                                                                     x_max, x_min,
-                                                                                                     y_max, y_min)
+
+                        if not apply_heatmap:
+                            output_roi_face, x_max_bb, x_min_bb, y_max_bb, y_min_bb = apply_bounding_box(output_roi_face,
+                                                                                                         bb_offset,
+                                                                                                         x_max, x_min,
+                                                                                                         y_max, y_min)
+                        else:
+                            output_roi_face, x_max_bb, x_min_bb, y_max_bb, y_min_bb = apply_bounding_box(
+                                mask_roi,
+                                bb_offset,
+                                x_max, x_min,
+                                y_max, y_min)
                     else:
                         # use last valid data, even when no face is present in the current frame
                         if mask_roi is not None and mask_roi.any():
-                            output_roi_face = cv2.copyTo(frame, mask_roi)
+                            if not apply_heatmap:
+                                output_roi_face = cv2.copyTo(frame, mask_roi)
+                            else:
+                                output_roi_face = mask_roi
 
                             output_roi_face = output_roi_face[int(y_min_bb):int(y_max_bb), int(x_min_bb):int(x_max_bb)]
 
-                    # append frame to list of all video frames
-                    try:
-                        frame = cv2.cvtColor(output_roi_face, cv2.COLOR_BGR2RGB)
-                    except cv2.error as cv_e:
-                        print(f"cv2 Error during processing subject {saved_filename}:  {str(video_frame_count)}")
-                        print(str(cv_e))
-
-                        frame = frame[int(y_min_bb):int(y_max_bb), int(x_min_bb):int(x_max_bb)]
-                        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                        pass
+                    if output_roi_face is not None and output_roi_face.any():
+                        # append frame to list of all video frames
+                        try:
+                            frame = cv2.cvtColor(output_roi_face, cv2.COLOR_BGR2RGB)
+                        except cv2.error as cv_e:
+                            print(f"cv2 Error during processing subject {saved_filename}:  {str(video_frame_count)}")
+                            print(str(cv_e))
+                            pass
 
                     # find maximum shape of all frames
                     max_dim_frame = max(frame.shape[0], frame.shape[1])
@@ -584,15 +911,24 @@ class BaseLoader(Dataset):
 
                     video_frame_count += 1
 
+                    # Code only used for logging the code runtime and to create a runtime plot
+                    if roi_mode == "optimal_roi":
+                        end_time_frame = time.time()
+                        csv_writer_runtime.writerow([start_time, str(end_time_frame - start_time), str(end_time_frame - start_time_frame)])
+
+
             if roi_mode == "optimal_roi":
                 csv_file.close()
+                # Code only used for logging the code runtime and to create a runtime plot
+                csv_file_runtime.close()
 
             try:
                 # resize all roi frames to same shape
                 for idx in range(len(frames)):
                     frames[idx] = cv2.resize(frames[idx], (max_dim_roi, max_dim_roi))
+                    frames[idx] = cv2.resize(frames[idx], (72, 72), interpolation=cv2.INTER_AREA)
 
-                frames = np.asarray(frames, dtype=np.uint8)
+                frames = np.asarray(frames, dtype=np.float64)
 
                 return frames
             except cv2.error as cv_e2:
@@ -601,29 +937,78 @@ class BaseLoader(Dataset):
             return video_frames
 
 
-    def face_detection(self, frame, use_larger_box=False, larger_box_coef=1.0):
+    def face_detection(self, frame, backend, use_larger_box=False, larger_box_coef=1.0):
         """Face detection on a single frame.
 
         Args:
             frame(np.array): a single frame.
+            backend(str): backend to utilize for face detection.
             use_larger_box(bool): whether to use a larger bounding box on face detection.
             larger_box_coef(float): Coef. of larger box.
         Returns:
             face_box_coor(List[int]): coordinates of face bouding box.
         """
+        if backend == "HC":
+            # Use OpenCV's Haar Cascade algorithm implementation for face detection
+            # This should only utilize the CPU
+            detector = cv2.CascadeClassifier(
+                    './dataset/haarcascade_frontalface_default.xml')
 
-        detector = cv2.CascadeClassifier(
-           './dataset/haarcascade_frontalface_default.xml')
-        face_zone = detector.detectMultiScale(frame)
-        if len(face_zone) < 1:
-            print("ERROR: No Face Detected")
-            face_box_coor = [0, 0, frame.shape[0], frame.shape[1]]
-        elif len(face_zone) >= 2:
-            face_box_coor = np.argmax(face_zone, axis=0)
-            face_box_coor = face_zone[face_box_coor[2]]
-            print("Warning: More than one faces are detected(Only cropping the biggest one.)")
+            # Computed face_zone(s) are in the form [x_coord, y_coord, width, height]
+            # (x,y) corresponds to the top-left corner of the zone to define using
+            # the computed width and height.
+            face_zone = detector.detectMultiScale(frame)
+
+            if len(face_zone) < 1:
+                print("ERROR: No Face Detected")
+                face_box_coor = [0, 0, frame.shape[0], frame.shape[1]]
+            elif len(face_zone) >= 2:
+                # Find the index of the largest face zone
+                # The face zones are boxes, so the width and height are the same
+                max_width_index = np.argmax(face_zone[:, 2])  # Index of maximum width
+                face_box_coor = face_zone[max_width_index]
+                print("Warning: More than one faces are detected. Only cropping the biggest one.")
+            else:
+                face_box_coor = face_zone[0]
+        elif backend == "RF":
+            # Use a TensorFlow-based RetinaFace implementation for face detection
+            # This utilizes both the CPU and GPU
+            res = RetinaFace.detect_faces(frame)
+
+            if len(res) > 0:
+                # Pick the highest score
+                highest_score_face = max(res.values(), key=lambda x: x['score'])
+                face_zone = highest_score_face['facial_area']
+
+                # This implementation of RetinaFace returns a face_zone in the
+                # form [x_min, y_min, x_max, y_max] that corresponds to the
+                # corners of a face zone
+                x_min, y_min, x_max, y_max = face_zone
+
+                # Convert to this toolbox's expected format
+                # Expected format: [x_coord, y_coord, width, height]
+                x = x_min
+                y = y_min
+                width = x_max - x_min
+                height = y_max - y_min
+
+                # Find the center of the face zone
+                center_x = x + width // 2
+                center_y = y + height // 2
+
+                # Determine the size of the square (use the maximum of width and height)
+                square_size = max(width, height)
+
+                # Calculate the new coordinates for a square face zone
+                new_x = center_x - (square_size // 2)
+                new_y = center_y - (square_size // 2)
+                face_box_coor = [new_x, new_y, square_size, square_size]
+            else:
+                print("ERROR: No Face Detected")
+                face_box_coor = [0, 0, frame.shape[0], frame.shape[1]]
         else:
-            face_box_coor = face_zone[0]
+            raise ValueError("Unsupported face detection backend!")
+
         if use_larger_box:
             face_box_coor[0] = max(0, face_box_coor[0] - (larger_box_coef - 1.0) / 2 * face_box_coor[2])
             face_box_coor[1] = max(0, face_box_coor[1] - (larger_box_coef - 1.0) / 2 * face_box_coor[3])
@@ -631,7 +1016,7 @@ class BaseLoader(Dataset):
             face_box_coor[3] = larger_box_coef * face_box_coor[3]
         return face_box_coor
 
-    def crop_face_resize(self, frames, use_face_detection, use_larger_box, larger_box_coef, use_dynamic_detection, 
+    def crop_face_resize(self, frames, use_face_detection, backend, use_larger_box, larger_box_coef, use_dynamic_detection,
                          detection_freq, use_median_box, width, height):
         """Crop face and resize frames.
 
@@ -659,14 +1044,13 @@ class BaseLoader(Dataset):
         # Perform face detection by num_dynamic_det" times.
         for idx in range(num_dynamic_det):
             if use_face_detection:
-                face_region_all.append(self.face_detection(frames[detection_freq * idx], use_larger_box, larger_box_coef))
+                face_region_all.append(self.face_detection(frames[detection_freq * idx], backend, use_larger_box, larger_box_coef))
             else:
                 face_region_all.append([0, 0, frames.shape[1], frames.shape[2]])
         face_region_all = np.asarray(face_region_all, dtype='int')
         if use_median_box:
             # Generate a median bounding box based on all detected face regions
             face_region_median = np.median(face_region_all, axis=0).astype('int')
-
 
         # Frame Resizing
         resized_frames = np.zeros((frames.shape[0], height, width, 3))
@@ -755,7 +1139,7 @@ class BaseLoader(Dataset):
             count += 1
         return input_path_name_list, label_path_name_list
 
-    def multi_process_manager(self, data_dirs, config_preprocess, multi_process_quota=3):
+    def multi_process_manager(self, data_dirs, config_preprocess, multi_process_quota=4):
         """Allocate dataset preprocessing across multiple processes.
 
         Args:
@@ -782,7 +1166,7 @@ class BaseLoader(Dataset):
             while process_flag:  # ensure that every i creates a process
                 if running_num < multi_process_quota:  # in case of too many processes
                     # send data to be preprocessing task
-                    p = Process(target=self.preprocess_dataset_subprocess, 
+                    p = Process(target=self.preprocess_dataset_subprocess,
                                 args=(data_dirs,config_preprocess, i, file_list_dict))
                     p.start()
                     p_list.append(p)
@@ -803,7 +1187,7 @@ class BaseLoader(Dataset):
         return file_list_dict
 
     def build_file_list(self, file_list_dict):
-        """Build a list of files used by the dataloader for the data split. Eg. list of files used for 
+        """Build a list of files used by the dataloader for the data split. Eg. list of files used for
         train / val / test. Also saves the list to a .csv file.
 
         Args:
@@ -824,8 +1208,8 @@ class BaseLoader(Dataset):
         file_list_df.to_csv(self.file_list_path)  # save file list to .csv
 
     def build_file_list_retroactive(self, data_dirs, begin, end):
-        """ If a file list has not already been generated for a specific data split build a list of files 
-        used by the dataloader for the data split. Eg. list of files used for 
+        """ If a file list has not already been generated for a specific data split build a list of files
+        used by the dataloader for the data split. Eg. list of files used for
         train / val / test. Also saves the list to a .csv file.
 
         Args:
@@ -885,7 +1269,7 @@ class BaseLoader(Dataset):
         diffnormalized_len = n - 1
         diffnormalized_data = np.zeros((diffnormalized_len, h, w, c), dtype=np.float32)
         diffnormalized_data_padding = np.zeros((1, h, w, c), dtype=np.float32)
-        for j in range(diffnormalized_len - 1):
+        for j in range(diffnormalized_len):
             diffnormalized_data[j, :, :, :] = (data[j + 1, :, :, :] - data[j, :, :, :]) / (
                     data[j + 1, :, :, :] + data[j, :, :, :] + 1e-7)
         diffnormalized_data = diffnormalized_data / np.std(diffnormalized_data)
