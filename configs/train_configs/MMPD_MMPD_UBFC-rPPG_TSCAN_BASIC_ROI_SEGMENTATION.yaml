@@ -4,13 +4,13 @@ TRAIN:
   BATCH_SIZE: 4
   EPOCHS: 30
   LR: 9e-3
-  MODEL_FILE_NAME: MMPD_MMPD_UBFC_tscan_roi_segmentation
+  MODEL_FILE_NAME: MMPD_MMPD_complete_UBFC_tscan_roi_segmentation
   PLOT_LOSSES_AND_LR: True
   DATA:
     INFO:
-      LIGHT: [1, 2, 3]  # 1 - LED-Low, 2 - LED-high, 3 - Incandescent, 4 - Nature
-      MOTION: [2] # 1 - Stationary, 2 - Rotation, 3 - Talking, 4 - Walking
-      EXERCISE: [2] # 1 - True, 2 - False
+      LIGHT: [1, 2, 3, 4]  # 1 - LED-Low, 2 - LED-high, 3 - Incandescent, 4 - Nature
+      MOTION: [1, 2, 3, 4] # 1 - Stationary, 2 - Rotation, 3 - Talking, 4 - Walking
+      EXERCISE: [1, 2] # 1 - True, 2 - False
       SKIN_COLOR: [3,4,5,6] # Fitzpatrick Scale Skin Types - 3, 4, 5, 6
       GENDER: [1, 2]  # 1 - Male, 2 - Female
       GLASSER: [1, 2] # 1 - True, 2 - False
@@ -21,7 +21,7 @@ TRAIN:
     DO_PREPROCESS: True                   # if first time, should be true
     DATA_FORMAT: NDCHW
     DATA_PATH:   "d:/Datasets/MMPD/data/"          # Raw dataset path, need to be updated
-    CACHED_PATH: "d:/rppg_toolbox/PreprocessedData_NN_ROI_segmentation/MMPD_rotation/"      # Processed dataset save path, need to be updated
+    CACHED_PATH: "d:/rppg_toolbox/PreprocessedData_NN_ROI_segmentation/MMPD_complete/"      # Processed dataset save path, need to be updated
     EXP_DATA_NAME: ""
     BEGIN: 0.0
     END: 0.8
@@ -52,9 +52,9 @@ TRAIN:
 VALID:
   DATA:
     INFO:
-      LIGHT: [1, 2, 3]  # 1 - LED-Low, 2 - LED-high, 3 - Incandescent, 4 - Nature
-      MOTION: [2] # 1 - Stationary, 2 - Rotation, 3 - Talking, 4 - Walking
-      EXERCISE: [2] # 1 - True, 2 - False
+      LIGHT: [1, 2, 3, 4]  # 1 - LED-Low, 2 - LED-high, 3 - Incandescent, 4 - Nature
+      MOTION: [1, 2, 3, 4] # 1 - Stationary, 2 - Rotation, 3 - Talking, 4 - Walking
+      EXERCISE: [1, 2] # 1 - True, 2 - False
       SKIN_COLOR: [3,4,5,6] # Fitzpatrick Scale Skin Types - 3, 4, 5, 6
       GENDER: [1, 2]  # 1 - Male, 2 - Female
       GLASSER: [1, 2] # 1 - True, 2 - False
@@ -65,7 +65,7 @@ VALID:
     DO_PREPROCESS: True                # if first time, should be true
     DATA_FORMAT: NDCHW
     DATA_PATH:   "d:/Datasets/MMPD/data/"          # Raw dataset path, need to be updated
-    CACHED_PATH: "d:/rppg_toolbox/PreprocessedData_NN_ROI_segmentation/MMPD_rotation/"      # Processed dataset save path, need to be updated
+    CACHED_PATH: "d:/rppg_toolbox/PreprocessedData_NN_ROI_segmentation/MMPD_complete/"      # Processed dataset save path, need to be updated
     EXP_DATA_NAME: ""
     BEGIN: 0.8
     END: 1.0
@@ -133,7 +133,7 @@ TEST:
 DEVICE: cuda:0
 NUM_OF_GPU_TRAIN: 1
 LOG:
-  PATH: ROI_segmentation_runs/exp_final/MMPD_MMPD_UBFC_tscan
+  PATH: ROI_segmentation_runs/exp_final/MMPD_MMPD_complete_UBFC_tscan
 MODEL:
   DROP_RATE: 0.2
   NAME: Tscan
