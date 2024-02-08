@@ -55,6 +55,12 @@ class TSCAN(nn.Module):
           TS_CAN model.
         """
         super(TSCAN, self).__init__()
+
+        # add attributes to store attention masks
+        self.attention_masks = []
+        self.gated_attention_masks = []
+        self.input_data = []
+
         self.in_channels = in_channels
         self.kernel_size = kernel_size
         self.dropout_rate1 = dropout_rate1
@@ -119,6 +125,9 @@ class TSCAN(nn.Module):
         diff_input = inputs[:, :3, :, :]
         raw_input = inputs[:, 3:, :, :]
 
+        self.input_data.append(diff_input.detach().cpu().numpy())       # store difference input of motion branch
+        self.input_data.append(raw_input.detach().cpu().numpy())        # store raw input of appearance branch
+
         diff_input = self.TSM_1(diff_input)
         d1 = torch.tanh(self.motion_conv1(diff_input))
         d1 = self.TSM_2(d1)
@@ -129,7 +138,12 @@ class TSCAN(nn.Module):
 
         g1 = torch.sigmoid(self.apperance_att_conv1(r2))
         g1 = self.attn_mask_1(g1)
+
+        self.attention_masks.append(g1.detach().cpu().numpy())  # store attention mask
+
         gated1 = d2 * g1
+
+        self.gated_attention_masks.append(gated1.detach().cpu().numpy())  # store gated attention mask
 
         d3 = self.avg_pooling_1(gated1)
         d4 = self.dropout_1(d3)
@@ -147,7 +161,12 @@ class TSCAN(nn.Module):
 
         g2 = torch.sigmoid(self.apperance_att_conv2(r6))
         g2 = self.attn_mask_2(g2)
+
+        self.attention_masks.append(g2.detach().cpu().numpy())  # store attention mask
+
         gated2 = d6 * g2
+
+        self.gated_attention_masks.append(gated2.detach().cpu().numpy())  # store gated attention mask
 
         d7 = self.avg_pooling_3(gated2)
         d8 = self.dropout_3(d7)
