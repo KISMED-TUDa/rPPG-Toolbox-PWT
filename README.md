@@ -185,6 +185,29 @@ in: Proc. 23st IEEE Int. Symposium on Robot and Human Interactive Communication 
           |       |-- bvp_sn_T2.csv
     -----------------
 
+* KISMED
+    * not published
+    -----------------
+          RawData/
+          |   |-- p001/
+          |       |-- v01/
+          |          |-- video_RAW_RGBA.avi
+          |          |-- BVP.csv
+          |       |...
+          |       |-- v12/
+          |          |-- video_RAW_RGBA.avi
+          |          |-- BVP.csv
+          |...
+          |   |-- p010/
+          |       |-- v01/
+          |          |-- video_RAW_RGBA.avi
+          |          |-- BVP.csv
+          |       |...
+          |       |-- v12/
+          |          |-- video_RAW_RGBA.avi
+          |          |-- BVP.csv
+    -----------------
+
 ## :bar_chart: Benchmarks
 
 The table shows  Mean Absolute Error (MAE) and Mean Absolute Percent Error (MAPE) performance across all the algorithms and datasets:
@@ -303,6 +326,14 @@ Here are some explanation of parameters:
   * `INFO`: This is a collection of parameters based on attributes of a dataset, such as gender, motion types, and skin color, that help select videos for inclusion in training, validation, or testing. Currently, only the [MMPD](https://github.com/McJackTang/MMPD_rPPG_dataset) dataset is supported for parameter-based video inclusion. Please refer to one of the config files involving the [MMPD](https://github.com/McJackTang/MMPD_rPPG_dataset) dataset for an example of using these parameters.
   * `EXCLUSION_LIST`: A list that specifies videos to exclude, typically based on a unique identifier to a video such as the combination of a subject ID and a task ID. This is only used if `USE_EXCLUSION_LIST` is set to `True`. Currently this parameter is only tested with the [UBFC-Phys](https://sites.google.com/view/ybenezeth/ubfc-phys) dataset. Please refer to one of the config files involving the [UBFC-Phys](https://sites.google.com/view/ybenezeth/ubfc-phys) dataset for an example of using this parameter.
   * `TASK_LIST`: A list to specify tasks to include when loading a dataset, allowing for selective inclusion of a subset of tasks or a single task in a dataset if desired. This is only used if `SELECT_TASKS` is set to `True`. Currently this parameter is only tested with the [UBFC-Phys](https://sites.google.com/view/ybenezeth/ubfc-phys) dataset. Please refer to one of the config files involving the [UBFC-Phys](https://sites.google.com/view/ybenezeth/ubfc-phys) dataset for an example of using this parameter.
+  * `DO_SEGMENTATION`: The Mediapipe based segmentation is activated instead of a simple bounding box if `DO_SEGMENTATION` is `True`.
+  * `THRESHOLD`: Defines the angle thresehold used for the camera-skin angle based segmentation. A Threshold of 90° is euquivalent to no angle based segmentation.
+  * `INTERPOLATE_ANGLES`: The Angles computed from the mediapipe face triangle are interpolated if `INTERPOLATE_ANGLES` is `True`. Otherwise the angle of the triangle is assumed for its complete area.
+  * `ROI_MODE`: Can be one of ["optimal_roi", "forehead", "left_cheek", "right_cheek"]. Only relevant if `CONSTRAIN_ROI` is `True`.
+  * `USE_CONVEX_HULL`: Uses the Convex Hull algorithm to smooth the area collected by the segmentation if `USE_CONVEX_HULL` is `True`.
+  * `CONSTRAIN_ROI`: If `CONSTRAIN_ROI` is `True`, the ROI selected in `ROI_MODE` is used.
+  * `USE_OUTSIDE_ROI`: The complementary segmentation to the selected ROI in `ROI_MODE`  inside the face hull is used if `USE_OUTSIDE_ROI` is `True`.
+
 
   
 * #### MODEL : Set used model (Deepphys, TSCAN, Physnet, EfficientPhys, BigSmall, and PhysFormer and their paramaters are supported).

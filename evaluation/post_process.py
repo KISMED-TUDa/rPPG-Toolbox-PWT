@@ -110,7 +110,7 @@ def calculate_metric_per_video(predictions, labels, fs=30, diff_flag=True, use_b
         predictions = _detrend(predictions, 100)
         labels = _detrend(labels, 100)
     if use_bandpass:
-        # bandpass filter between [0.5, 4.16] Hz
+        # bandpass filter between [0.5, 4.16] Hz # Note: since signal was filtered before with much lower bounds, this does not change anything
         # equals [30, 250] beats per min
         LPF = 30 / 60  # = 30 BPM
         HPF = 250 / 60  # = 250 BPM

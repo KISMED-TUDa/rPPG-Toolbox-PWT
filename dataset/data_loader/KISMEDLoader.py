@@ -59,8 +59,13 @@ class KISMEDLoader(BaseLoader):
             for sub_dir in sub_dirs:
                 index_scenario = os.path.split(sub_dir)[-1]
 
-                # use only "rotation" rPPG scenario
-                if "v11" not in index_scenario:
+                # use only "rotation" rPPG scenario: v11
+                # v01: sationary ceiling-illumination, v02: stationary natural-illumination, 
+                # v03: altering illumination, v04:varying side-illumination (ceil on), 
+                # v05: varying side_illumination (ceil off), v06: varying camera-distance,
+                # v07: squats, v08: face wear, v09: natural behaviour, v10: head translation,
+                # v11: head rotation, v12: head rotation and translation
+                if index_scenario not in self.config_data.SCENARIOS: #["v01","v02","v03","v04","v05","v06","v07","v08","v09","v10","v11","v12"]:
                     continue
                 else:
                     dirs.append({"index": '-'.join([subject, index_scenario]),

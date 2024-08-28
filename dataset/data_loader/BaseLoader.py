@@ -251,7 +251,8 @@ class BaseLoader(Dataset):
                                        config_preprocess.ROI_SEGMENTATION.ROI_MODE,
                                        config_preprocess.ROI_SEGMENTATION.USE_CONVEX_HULL,
                                        config_preprocess.ROI_SEGMENTATION.CONSTRAIN_ROI,
-                                       config_preprocess.ROI_SEGMENTATION.USE_OUTSIDE_ROI)
+                                       config_preprocess.ROI_SEGMENTATION.USE_OUTSIDE_ROI,
+                                       interpolate_angles=config_preprocess.ROI_SEGMENTATION.INTERPOLATE_ANGLES)
 
         if "Standardized_ROI_segmentation" in config_preprocess.DATA_TYPE:
             # perform ROI segmentation to extract the whole face from video
@@ -366,7 +367,7 @@ class BaseLoader(Dataset):
         return frames_clips, bvps_clips
 
 
-    def roi_segmentation_for_video(self, video_frames, saved_filename, use_roi_segmentation, threshold=90, roi_mode="optimal_roi", use_convex_hull=True, constrain_roi=True, use_outside_roi=False, apply_heatmap=False):
+    def roi_segmentation_for_video(self, video_frames, saved_filename, use_roi_segmentation, threshold=90, roi_mode="optimal_roi", use_convex_hull=True, constrain_roi=True, use_outside_roi=False, apply_heatmap=False, interpolate_angles=False):
         if use_roi_segmentation:
             csv_file = None
             csv_file_runtime = None
@@ -462,7 +463,8 @@ class BaseLoader(Dataset):
                                                                                         roi_mode=roi_mode,
                                                                                         constrain_roi=constrain_roi,
                                                                                         use_convex_hull=use_convex_hull,
-                                                                                        use_outside_roi=use_outside_roi)
+                                                                                        use_outside_roi=use_outside_roi,
+                                                                                        interpolate_angles=interpolate_angles)
                             else:
                                 mesh_points_bounding_box_, mask_optimal_roi, mask_outside_roi = self.calculate_roi_heatmap(
                                                                                         frame,
@@ -471,7 +473,8 @@ class BaseLoader(Dataset):
                                                                                         roi_mode=roi_mode,
                                                                                         constrain_roi=constrain_roi,
                                                                                         use_convex_hull=False,
-                                                                                        use_outside_roi=use_outside_roi)
+                                                                                        use_outside_roi=use_outside_roi,
+                                                                                        interpolate_angles=interpolate_angles)
                         except IndexError as ie:
                             print(f"Index Error during processing subject {saved_filename}:  {str(self.video_frame_count)}")
                             print(str(ie))
@@ -624,7 +627,7 @@ class BaseLoader(Dataset):
 
 
     def calculate_roi(self, image, skin_segmentation_mask, threshold=90, roi_mode="optimal_roi", constrain_roi=True,
-                      use_convex_hull=True, use_outside_roi=False):
+                      use_convex_hull=True, use_outside_roi=False, interpolate_angles=False):
         """
          Calculates and extracts the region of interest (ROI) from an input image based on facial landmarks and their angles with respect to camera and surface normals.
          It uses the results from facial landmark detection to identify and extract triangles from the face mesh that fall below the specified angle threshold.
@@ -751,7 +754,7 @@ class BaseLoader(Dataset):
         if skin_segmentation_mask is not None:
             mask_optimal_roi = cv2.bitwise_and(mask_optimal_roi, mask_optimal_roi, mask=skin_segmentation_mask)
 
-        if constrain_roi and use_outside_roi:
+        if interpolate_angles:
             interpolated_surface_normal_angles = interpolate_surface_normal_angles_scipy(centroid_coordinates,
                                                                                          pixel_coordinates,
                                                                                          surface_normal_angles, x_min,
@@ -779,7 +782,7 @@ class BaseLoader(Dataset):
 
 
     def calculate_roi_heatmap(self, image, skin_segmentation_mask, threshold=90, roi_mode="optimal_roi",
-                              constrain_roi=True, use_convex_hull=True, use_outside_roi=False):
+                              constrain_roi=True, use_convex_hull=True, use_outside_roi=False, interpolate_angles=False):
         """
          Calculates and extracts the region of interest (ROI) from an input image based on facial landmarks and their angles with respect to camera and surface normals.
          It uses the results from facial landmark detection to identify and extract triangles from the face mesh that fall below the specified angle threshold.
@@ -911,7 +914,7 @@ class BaseLoader(Dataset):
         if skin_segmentation_mask is not None:
             mask_optimal_roi = cv2.bitwise_and(mask_optimal_roi, mask_optimal_roi, mask=skin_segmentation_mask)
 
-        if constrain_roi and use_outside_roi:
+        if interpolate_angles:
             interpolated_surface_normal_angles = interpolate_surface_normal_angles_scipy(centroid_coordinates,
                                                                                          pixel_coordinates,
                                                                                          surface_normal_angles, x_min,
