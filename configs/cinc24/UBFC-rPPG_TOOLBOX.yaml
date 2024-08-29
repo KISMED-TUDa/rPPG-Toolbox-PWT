@@ -5,13 +5,12 @@ UNSUPERVISED:
   METRICS: ['MAE','RMSE','MAPE','Pearson', 'SNR', 'Accuracy', 'BA']
   DATA:
     FS: 30
-    DATASET: KISMED
-    DO_PREPROCESS: True
+    DATASET: UBFC-rPPG
+    DO_PREPROCESS: True               # if first time, should be true
     DATA_FORMAT: NDHWC
-    DATA_PATH: "/home/rohr/data_cache/KISMED"       # Raw dataset path, need to be updated
-    CACHED_PATH: "/home/rohr/data_cache/rppg_toolbox/preprocessed/KISMED/"   # Processed dataset save path, need to be updated
+    DATA_PATH: "/mnt/share/XDataBase/PPGI/UBFC/DATASET_2/"       # Raw dataset path, need to be updated
+    CACHED_PATH: "/home/rohr/data_cache/rppg_toolbox/preprocessed/cinc24/UBFC-rPPG/"             # Processed dataset save path, need to be updated
     EXP_DATA_NAME: ""
-    SCENARIOS:  ["v01","v02","v03","v04","v05","v06","v07","v08","v09","v10","v11","v12"]
     BEGIN: 0.0
     END: 1.0
     PREPROCESS:
@@ -21,18 +20,18 @@ UNSUPERVISED:
       DO_CHUNK: False
       CHUNK_LENGTH: 180
       ROI_SEGMENTATION:
-        DO_SEGMENTATION: True
+        DO_SEGMENTATION: False
         THRESHOLD: 30
-        INTERPOLATE_ANGLES: True
-        ROI_MODE: "optimal_roi" # choose between: ["optimal_roi", "forehead", "left_cheek", "right_cheek"]
+        INTERPOLATE_ANGLES: False
+        ROI_MODE: "optimal_roi"
         USE_CONVEX_HULL: True
         CONSTRAIN_ROI: False
         USE_OUTSIDE_ROI: False
       CROP_FACE:
-        DO_CROP_FACE: False
+        DO_CROP_FACE: True #  False  # True    # must be False, if ROI_SEGMENTATION is True
         BACKEND: 'HC'    # HC for Haar Cascade, RF for RetinaFace
-        USE_LARGE_FACE_BOX: False
-        LARGE_BOX_COEF: 1.0
+        USE_LARGE_FACE_BOX: False  # False  # True
+        LARGE_BOX_COEF: 1.0  # 1.0 # 1.5
         DETECTION:
           DO_DYNAMIC_DETECTION: False
           DYNAMIC_DETECTION_FREQUENCY : 30
@@ -43,5 +42,8 @@ UNSUPERVISED:
 INFERENCE:
   EVALUATION_METHOD: "FFT"        # "FFT" or "peak detection"
   EVALUATION_WINDOW:
-    USE_SMALLER_WINDOW: True        # Change this if you'd like an evaluation window smaller than the test video length
-    WINDOW_SIZE: 30        # In seconds
+    USE_SMALLER_WINDOW: True      # Change this if you'd like an evaluation window smaller than the test video length
+    WINDOW_SIZE: 30               # In seconds
+TEST:
+  OUTPUT_SAVE_DIR: "/home/rohr/data_cache/rppg_toolbox/preprocessed/cinc24/UBFC-rPPG/"
+

@@ -1,0 +1,64 @@
+BASE:
+- ''
+INFERENCE:
+  EVALUATION_METHOD: FFT
+  EVALUATION_WINDOW:
+    USE_SMALLER_WINDOW: true
+    WINDOW_SIZE: 30
+TOOLBOX_MODE: unsupervised_method
+UNSUPERVISED:
+  DATA:
+    BEGIN: 0.0
+    CACHED_PATH: /home/rohr/data_cache/rppg_toolbox/preprocessed/cinc24/KISMED/
+    DATASET: KISMED
+    DATA_FORMAT: NDHWC
+    DATA_PATH: /home/rohr/data_cache/KISMED
+    DO_PREPROCESS: true
+    END: 1.0
+    EXP_DATA_NAME: ''
+    FS: 30
+    PREPROCESS:
+      CHUNK_LENGTH: 180
+      CROP_FACE:
+        BACKEND: HC
+        DETECTION:
+          DO_DYNAMIC_DETECTION: false
+          DYNAMIC_DETECTION_FREQUENCY: 30
+          USE_MEDIAN_FACE_BOX: false
+        DO_CROP_FACE: false
+        LARGE_BOX_COEF: 1.0
+        USE_LARGE_FACE_BOX: false
+      DATA_AUG:
+      - None
+      DATA_TYPE:
+      - Raw
+      DO_CHUNK: false
+      LABEL_TYPE: Raw
+      RESIZE:
+        H: 72
+        W: 72
+      ROI_SEGMENTATION:
+        CONSTRAIN_ROI: false
+        DO_SEGMENTATION: true
+        INTERPOLATE_ANGLES: true
+        ROI_MODE: optimal_roi
+        THRESHOLD: 90
+        USE_CONVEX_HULL: true
+        USE_OUTSIDE_ROI: false
+    SCENARIOS:
+    - v11
+  METHOD:
+  - ICA
+  - POS
+  - CHROM
+  - GREEN
+  - LGI
+  - PBV
+  METRICS:
+  - MAE
+  - RMSE
+  - MAPE
+  - Pearson
+  - SNR
+  - Accuracy
+  - BA

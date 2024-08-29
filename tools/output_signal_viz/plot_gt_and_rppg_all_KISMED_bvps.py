@@ -3,7 +3,7 @@ import numpy as np
 
 # Processed dataset path, need to be updated to specified path in unsupervised_methods/unsupervised_predictor.py,
 # where the numpy arrays of time, GT BVP and predicted BVP get saved
-video_file = "i:/rppg_toolbox/PreprocessedData/KISMED_BVP_plots_roi_segmentation/KISMED_SizeW72_SizeH72_ClipLength180_DataTypeRaw_DataAugNone_LabelTypeRaw_ROI_segmentationTrue_Angle_threshold90_ROI_mode-optimal_roi_Use_convex_hullTrue_Constrain_roiTrue_Outside_roiFalse_unsupervised/"
+video_file = "/home/rohr/data_cache/rppg_toolbox/preprocessed/KISMED/KISMED_SizeW72_SizeH72_ClipLength180_DataTypeRaw_DataAugNone_LabelTypeRaw_ROI_segmentationTrue_Angle_threshold30_ROI_mode-optimal_roi_Use_convex_hullTrue_Constrain_roiTrue_Outside_roiFalse_unsupervised/"
 _ = 9
 idx = 0
 i = 0
