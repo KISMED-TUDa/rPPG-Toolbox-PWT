@@ -6,16 +6,16 @@ INFERENCE:
     USE_SMALLER_WINDOW: true
     WINDOW_SIZE: 30
 TEST:
-  OUTPUT_SAVE_DIR: /home/rohr/data_cache/rppg_toolbox/preprocessed/cinc24/UBFC-rPPG/
+  OUTPUT_SAVE_DIR: /home/rohr/data_cache/rppg_toolbox/preprocessed/PURE_motion_scenario/
 TOOLBOX_MODE: unsupervised_method
 UNSUPERVISED:
   DATA:
     BEGIN: 0.0
-    CACHED_PATH: /home/rohr/data_cache/rppg_toolbox/preprocessed/cinc24/UBFC-rPPG/
-    DATASET: UBFC-rPPG
+    CACHED_PATH: /home/rohr/data_cache/rppg_toolbox/preprocessed/cinc24/PURE_motion_scenario/
+    DATASET: PURE
     DATA_FORMAT: NDHWC
-    DATA_PATH: /mnt/share/XDataBase/PPGI/UBFC/DATASET_2/
-    DO_PREPROCESS: true
+    DATA_PATH: /mnt/share/XDataBase/PPGI/PURE/data/
+    DO_PREPROCESS: false
     END: 1.0
     EXP_DATA_NAME: ''
     FS: 30
@@ -28,7 +28,7 @@ UNSUPERVISED:
           DYNAMIC_DETECTION_FREQUENCY: 30
           USE_MEDIAN_FACE_BOX: false
         DO_CROP_FACE: false
-        LARGE_BOX_COEF: 1.0
+        LARGE_BOX_COEF: 1.5
         USE_LARGE_FACE_BOX: false
       DATA_AUG:
       - None

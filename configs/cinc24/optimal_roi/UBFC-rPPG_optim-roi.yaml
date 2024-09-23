@@ -21,12 +21,12 @@ UNSUPERVISED:
       CHUNK_LENGTH: 180
       ROI_SEGMENTATION:
         DO_SEGMENTATION: True
-        THRESHOLD: 30
-        INTERPOLATE_ANGLES: True
-        ROI_MODE: "optimal_roi"
+        THRESHOLD: 90
+        INTERPOLATE_ANGLES: False
+        ROI_MODE: "optimal_roi" # choose between: ["optimal_roi", "forehead", "left_cheek", "right_cheek"]
         USE_CONVEX_HULL: True
-        CONSTRAIN_ROI: False
-        USE_OUTSIDE_ROI: True
+        CONSTRAIN_ROI: True
+        USE_OUTSIDE_ROI: False # has to be true in order to use any mask that is not listed in ROI Mode
       CROP_FACE:
         DO_CROP_FACE: False #  False  # True    # must be False, if ROI_SEGMENTATION is True
         BACKEND: 'HC'    # HC for Haar Cascade, RF for RetinaFace

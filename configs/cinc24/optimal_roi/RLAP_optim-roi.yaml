@@ -5,16 +5,14 @@ INFERENCE:
   EVALUATION_WINDOW:
     USE_SMALLER_WINDOW: true
     WINDOW_SIZE: 30
-TEST:
-  OUTPUT_SAVE_DIR: /home/rohr/data_cache/rppg_toolbox/preprocessed/cinc24/UBFC-rPPG/
 TOOLBOX_MODE: unsupervised_method
 UNSUPERVISED:
   DATA:
     BEGIN: 0.0
-    CACHED_PATH: /home/rohr/data_cache/rppg_toolbox/preprocessed/cinc24/UBFC-rPPG/
-    DATASET: UBFC-rPPG
+    CACHED_PATH: /home/rohr/data_cache/rppg_toolbox/preprocessed/cinc24/RLAP/
+    DATASET: RLAP
     DATA_FORMAT: NDHWC
-    DATA_PATH: /mnt/share/XDataBase/PPGI/UBFC/DATASET_2/
+    DATA_PATH: /home/rohr/data_cache/RLAP
     DO_PREPROCESS: true
     END: 1.0
     EXP_DATA_NAME: ''
@@ -40,13 +38,13 @@ UNSUPERVISED:
         H: 72
         W: 72
       ROI_SEGMENTATION:
-        CONSTRAIN_ROI: false
-        DO_SEGMENTATION: true
-        INTERPOLATE_ANGLES: true
-        ROI_MODE: optimal_roi
+        DO_SEGMENTATION: True
         THRESHOLD: 90
-        USE_CONVEX_HULL: true
-        USE_OUTSIDE_ROI: true
+        INTERPOLATE_ANGLES: False
+        ROI_MODE: "optimal_roi" # choose between: ["optimal_roi", "forehead", "left_cheek", "right_cheek"]
+        USE_CONVEX_HULL: True
+        CONSTRAIN_ROI: True
+        USE_OUTSIDE_ROI: False # has to be true in order to use any mask that is not listed in ROI Mode
   METHOD:
   - ICA
   - POS

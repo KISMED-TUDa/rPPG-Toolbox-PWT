@@ -44,7 +44,7 @@ UNSUPERVISED:
         ROI_MODE: optimal_roi
         THRESHOLD: 90
         USE_CONVEX_HULL: true
-        USE_OUTSIDE_ROI: false
+        USE_OUTSIDE_ROI: true
     SCENARIOS:
     - v11
   METHOD:

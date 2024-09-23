@@ -5,20 +5,49 @@ INFERENCE:
   EVALUATION_WINDOW:
     USE_SMALLER_WINDOW: true
     WINDOW_SIZE: 30
-TEST:
-  OUTPUT_SAVE_DIR: /home/rohr/data_cache/rppg_toolbox/preprocessed/cinc24/UBFC-rPPG/
 TOOLBOX_MODE: unsupervised_method
 UNSUPERVISED:
   DATA:
     BEGIN: 0.0
-    CACHED_PATH: /home/rohr/data_cache/rppg_toolbox/preprocessed/cinc24/UBFC-rPPG/
-    DATASET: UBFC-rPPG
+    CACHED_PATH: /home/rohr/data_cache/rppg_toolbox/preprocessed/cinc24/MMPD/
+    DATASET: MMPD
     DATA_FORMAT: NDHWC
-    DATA_PATH: /mnt/share/XDataBase/PPGI/UBFC/DATASET_2/
-    DO_PREPROCESS: true
+    DATA_PATH: /mnt/share/XDataBase/PPGI/MMPD/
+    DO_PREPROCESS: false
     END: 1.0
     EXP_DATA_NAME: ''
     FS: 30
+    INFO:
+      EXERCISE:
+      - 1
+      - 2
+      GENDER:
+      - 1
+      - 2
+      GLASSER:
+      - 1
+      - 2
+      HAIR_COVER:
+      - 1
+      - 2
+      LIGHT:
+      - 1
+      - 2
+      - 3
+      - 4
+      MAKEUP:
+      - 1
+      - 2
+      MOTION:
+      - 1
+      - 2
+      - 3
+      - 4
+      SKIN_COLOR:
+      - 3
+      - 4
+      - 5
+      - 6
     PREPROCESS:
       CHUNK_LENGTH: 180
       CROP_FACE:
@@ -44,7 +73,7 @@ UNSUPERVISED:
         DO_SEGMENTATION: true
         INTERPOLATE_ANGLES: true
         ROI_MODE: optimal_roi
-        THRESHOLD: 90
+        THRESHOLD: 40
         USE_CONVEX_HULL: true
         USE_OUTSIDE_ROI: true
   METHOD:
