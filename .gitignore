@@ -19,5 +19,5 @@ neural_methods/trainer/PhysnetTrainer_backup.py
 debug_utils_physnet.py
 test.yaml
 data/HR_lo*
-data/ROI_are_log_all_datasets
+data/ROI_area_log_all_datasets
 data/runtime_log
