@@ -10,3 +10,4 @@ import dataset.data_loader.UBFCPHYSLoader
 import dataset.data_loader.VIPLHRv1Loader
 import dataset.data_loader.RLAPLoader
 import dataset.data_loader.KISMEDLoader
+import dataset.data_loader.KISMEDLoaderSigmaFP

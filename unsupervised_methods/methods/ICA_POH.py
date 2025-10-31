@@ -15,7 +15,7 @@ def ICA_POH(frames, FS):
     # Cut off frequency.
     LPF = 30/60  # = 30 BPM   # 0.7  # = 42 BPM
     HPF = 250/60  # = 250 BPM  # 2.5 # = 150 BPM
-    RGB = process_video(frames)
+    RGB = _deprc_process_video(frames)
 
     NyquistF = 1 / 2 * FS
     BGRNorm = np.zeros(RGB.shape)
@@ -47,12 +47,22 @@ def ICA_POH(frames, FS):
     return BVP
 
 
-def process_video(frames):
+def _deprc_process_video(frames):
     "Calculates the average value of each frame."
     RGB = []
     for frame in frames:
         sum = np.sum(np.sum(frame, axis=0), axis=0)
         RGB.append(sum / (frame.shape[0] * frame.shape[1]))
+    return np.asarray(RGB)
+
+def process_video(frames):
+    """Calculates the average value of each frame."""
+    RGB = []
+    for frame in frames:
+        summation = np.sum(np.sum(frame, axis=0), axis=0)
+        #RGB.append(summation / (frame.shape[0] * frame.shape[1]))
+        # changed to account for black pixels after masking
+        RGB.append(summation / (frame>0).sum())
     return np.asarray(RGB)
 
 

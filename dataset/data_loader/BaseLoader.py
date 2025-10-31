@@ -432,8 +432,9 @@ class BaseLoader(Dataset):
 
 
                     results = face_mesh.process(rgb_frame)
-
+                    #TODO find out why the below conversion was done, this does not necessarily switch the color of outcome, but the inversion at the end of the function might not happen in edge cases
                     frame = cv2.cvtColor(np.array(rgb_frame), cv2.COLOR_RGB2BGR)
+                    #frame = rgb_frame
                     mask_roi = None
                     output_roi_face = None
 
@@ -478,8 +479,10 @@ class BaseLoader(Dataset):
                         except IndexError as ie:
                             print(f"Index Error during processing subject {saved_filename}:  {str(self.video_frame_count)}")
                             print(str(ie))
-
+                        
                         mask_roi = mask_outside_roi if use_outside_roi else mask_optimal_roi + mask_outside_roi
+                        if interpolate_angles and not use_outside_roi: #TODO verify that this is correct for the case that we want the optimal roi but also interpolated angles. The one above is mathematically wrong I think
+                            mask_roi = cv2.bitwise_and(mask_optimal_roi,mask_outside_roi)
 
                         output_roi_face = cv2.copyTo(frame, mask_roi)
 
@@ -758,11 +761,17 @@ class BaseLoader(Dataset):
             interpolated_surface_normal_angles = interpolate_surface_normal_angles_scipy(centroid_coordinates,
                                                                                          pixel_coordinates,
                                                                                          surface_normal_angles, x_min,
-                                                                                         x_max)
+                                                                                       x_max)
             mask_eyes = mask_eyes_out(mask_outside_roi, landmark_coords_xyz)
-            # extract smallest interpolation angles and create new mask only including pixels with the same amount as mask_optimal_roi
-            mask_outside_roi = extract_mask_outside_roi(img_h, img_w, interpolated_surface_normal_angles,
-                                                        mask_optimal_roi, mask_eyes, x_min, y_min)
+            if use_outside_roi and constrain_roi:
+                # extract smallest interpolation angles and create new mask only including pixels with the same amount as mask_optimal_roi
+                mask_outside_roi = extract_mask_outside_roi(img_h, img_w, interpolated_surface_normal_angles,
+                                                            mask_optimal_roi, mask_eyes, x_min, y_min)
+            else:
+                _,mask_angles = cv2.threshold(interpolated_surface_normal_angles,threshold,255,cv2.THRESH_BINARY_INV)
+                mask_outside_roi[y_min:y_max,x_min:x_max]=mask_angles
+                mask_outside_roi = cv2.bitwise_and(mask_outside_roi,mask_eyes)
+                #plt.imsave("interpolated_angles_mask.png",mask_outside_roi)
 
         # save pixel areas and mean angles of optimal ROIs in a csv file
         if constrain_roi and roi_mode == "optimal_roi":
@@ -914,15 +923,22 @@ class BaseLoader(Dataset):
         if skin_segmentation_mask is not None:
             mask_optimal_roi = cv2.bitwise_and(mask_optimal_roi, mask_optimal_roi, mask=skin_segmentation_mask)
 
+        
         if interpolate_angles:
             interpolated_surface_normal_angles = interpolate_surface_normal_angles_scipy(centroid_coordinates,
                                                                                          pixel_coordinates,
                                                                                          surface_normal_angles, x_min,
-                                                                                         x_max)
+                                                                                       x_max)
             mask_eyes = mask_eyes_out(mask_outside_roi, landmark_coords_xyz)
-            # extract smallest interpolation angles and create new mask only including pixels with the same amount as mask_optimal_roi
-            mask_outside_roi = extract_mask_outside_roi(img_h, img_w, interpolated_surface_normal_angles,
-                                                        mask_optimal_roi, mask_eyes, x_min, y_min)
+            if use_outside_roi and constrain_roi:
+                # extract smallest interpolation angles and create new mask only including pixels with the same amount as mask_optimal_roi
+                mask_outside_roi = extract_mask_outside_roi(img_h, img_w, interpolated_surface_normal_angles,
+                                                            mask_optimal_roi, mask_eyes, x_min, y_min)
+            else:
+                _,mask_angles = cv2.threshold(interpolated_surface_normal_angles,threshold,255,cv2.THRESH_BINARY_INV)
+                mask_outside_roi[y_min:y_max,x_min:x_max]=mask_angles
+                mask_outside_roi = cv2.bitwise_and(mask_outside_roi,mask_eyes)
+                #plt.imsave("interpolated_angles_mask.png",mask_outside_roi)
 
         # save pixel areas and mean angles of optimal ROIs in a csv file
         if constrain_roi and roi_mode == "optimal_roi":

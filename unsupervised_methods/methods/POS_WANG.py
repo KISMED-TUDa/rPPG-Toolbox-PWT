@@ -17,6 +17,9 @@ def _process_video(frames):
     for frame in frames:
         summation = np.sum(np.sum(frame, axis=0), axis=0)
         RGB.append(summation / (frame.shape[0] * frame.shape[1]))
+        #TODO find out why the version below is not better
+        # changed to account for black pixels after masking
+        #RGB.append(summation / (frame>0).sum())
     return np.asarray(RGB)
 
 

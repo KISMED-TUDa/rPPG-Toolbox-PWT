@@ -3,11 +3,11 @@ import numpy as np
 
 # Processed dataset path, need to be updated to specified path in unsupervised_methods/unsupervised_predictor.py,
 # where the numpy arrays of time, GT BVP and predicted BVP get saved
-video_file = "/home/rohr/data_cache/rppg_toolbox/preprocessed/KISMED/KISMED_SizeW72_SizeH72_ClipLength180_DataTypeRaw_DataAugNone_LabelTypeRaw_ROI_segmentationTrue_Angle_threshold30_ROI_mode-optimal_roi_Use_convex_hullTrue_Constrain_roiTrue_Outside_roiFalse_unsupervised/"
+video_file = "KISMED_SzW72_SzH72_ClipLen180_DataTypeRaw_DataAugNone_LabelTypeRaw_ROI_segmeTrue_Angle_thres30_Interp_AngleTrue_ROI_mode-optimal_roi_Use_convex_hullTrue_Constr_roiFalse_Outs_roiTrue_unsupervised"
 _ = 9
 idx = 0
 i = 0
-method_name = "POS"
+method_name = "CHROM"
 
 font_size = 18
 # set the font to Charter
@@ -96,4 +96,4 @@ for _ in range(12):
 
 fig.tight_layout()
 plt.subplots_adjust(left=0.11, bottom=0.06, right=0.94, top=0.99, wspace=0.20, hspace=0.15)
-plt.show()
+plt.savefig()

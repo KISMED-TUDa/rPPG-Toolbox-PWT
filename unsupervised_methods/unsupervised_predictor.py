@@ -74,7 +74,8 @@ def unsupervised_predict(config, data_loader, method_name):
                 BVP_window = BVP[i:i+window_frame_size]
                 label_window = labels_input[i:i+window_frame_size]
 
-                if len(BVP_window) < 9:
+                if len(BVP_window) < 6*config.UNSUPERVISED.DATA.FS:
+                    # Comment by MR: before it left out video windows with less than 9 samples, which reduces the quality of the metrics by quite a lot Assuming a frame rate of 30 FPS one needs at least 180 samples to measure anything
                     # print(f"Window frame size of {len(BVP_window)} is smaller than minimum pad length of 9 or smaller "
                     #       f"than a third of window_frame_size. Window ignored!")
                     continue
@@ -95,10 +96,10 @@ def unsupervised_predict(config, data_loader, method_name):
                     csv_writer.writerow([method_name, data_loader['unsupervised'].dataset.inputs[_].split("\\")[-1], i, i+window_frame_size, pre_fft_hr, gt_fft_hr, SNR])
 
                     # save numpy arrays if you want to plot the signals, using the script: tools/output_signal_viz/plot_gt_and_rppg_bvp.py
-                    # time = np.arange(len(BVP)) / config.UNSUPERVISED.DATA.FS
-                    # np.save(f'{video_file}/time_{_}_{idx}_{i}.npy', time)
-                    # np.save(f'{video_file}/ground_truth_{_}_{idx}_{i}.npy', ground_truth)
-                    # np.save(f'{video_file}/{method_name}_BVP_{_}_{idx}_{i}.npy', BVP)
+                    time = np.arange(len(BVP_window)) / config.UNSUPERVISED.DATA.FS
+                    np.save(f'{video_file}/time_{_}_{idx}_{i}.npy', time)
+                    np.save(f'{video_file}/ground_truth_{_}_{idx}_{i}.npy', label_window)
+                    np.save(f'{video_file}/{method_name}_BVP_{_}_{idx}_{i}.npy', BVP_window)
                 else:
                     raise ValueError("Inference evaluation method name wrong!")
 

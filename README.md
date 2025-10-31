@@ -331,8 +331,8 @@ Here are some explanation of parameters:
   * `INTERPOLATE_ANGLES`: The Angles computed from the mediapipe face triangle are interpolated if `INTERPOLATE_ANGLES` is `True`. Otherwise the angle of the triangle is assumed for its complete area.
   * `ROI_MODE`: Can be one of ["optimal_roi", "forehead", "left_cheek", "right_cheek"]. Only relevant if `CONSTRAIN_ROI` is `True`.
   * `USE_CONVEX_HULL`: Uses the Convex Hull algorithm to smooth the area collected by the segmentation if `USE_CONVEX_HULL` is `True`.
-  * `CONSTRAIN_ROI`: If `CONSTRAIN_ROI` is `True`, the ROI selected in `ROI_MODE` is used.
-  * `USE_OUTSIDE_ROI`: The complementary segmentation to the selected ROI in `ROI_MODE`  inside the face hull is used if `USE_OUTSIDE_ROI` is `True`.
+  * `CONSTRAIN_ROI`: If `CONSTRAIN_ROI` is `True`, the ROI selected in `ROI_MODE` is used. If it is False and any other ROI should be used `USE_OUTSIDE_ROI` must also be `True`.
+  * `USE_OUTSIDE_ROI`: The complementary segmentation to the selected ROI in `ROI_MODE`  inside the face hull is used if `USE_OUTSIDE_ROI` is `True`. Must also be used if Contrain ROI is turned off apparently.
 
 
   

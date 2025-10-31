@@ -25,11 +25,23 @@ def detrend(input_signal, lambda_value):
     return filtered_signal
 
 
-def process_video(frames):
+def _deprc_process_video(frames):
     RGB = []
     for frame in frames:
         summation = np.sum(np.sum(frame, axis=0), axis=0)
         RGB.append(summation / (frame.shape[0] * frame.shape[1]))
+    RGB = np.asarray(RGB)
+    RGB = RGB.transpose(1, 0).reshape(1, 3, -1)
+    return np.asarray(RGB)
+
+def process_video(frames):
+    """Calculates the average value of each frame."""
+    RGB = []
+    for frame in frames:
+        summation = np.sum(np.sum(frame, axis=0), axis=0)
+        #RGB.append(summation / (frame.shape[0] * frame.shape[1]))
+        # changed to account for black pixels after masking
+        RGB.append(summation / (frame>0).sum())
     RGB = np.asarray(RGB)
     RGB = RGB.transpose(1, 0).reshape(1, 3, -1)
     return np.asarray(RGB)

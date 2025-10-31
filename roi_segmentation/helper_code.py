@@ -509,7 +509,7 @@ def interpolate_surface_normal_angles_scipy(centroid_coordinates, pixel_coordina
 
     # Perform griddata interpolation to obtain the interpolated angles
     # The surface normal angles of invalid pixels outside of the face are set to zero
-    interpolated_angles = griddata((x_coords, y_coords), surface_normal_angles, (pixel_coordinates[:, 0], pixel_coordinates[:, 1]), method='linear', fill_value=0)
+    interpolated_angles = griddata((x_coords, y_coords), surface_normal_angles, (pixel_coordinates[:, 0], pixel_coordinates[:, 1]), method='linear', fill_value=91) #TODO remove quick hack with fill_value, original was 0 but that is a correct angle so it doesnt make sense
 
     # Reshape the interpolated surface normal angles from flattened form into a 2D image like array with the width of (x_max-x_min)
     return np.reshape(interpolated_angles, (-1, x_max - x_min))

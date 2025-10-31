@@ -50,7 +50,8 @@ class COHFACELoader(BaseLoader):
 
     def get_raw_data(self, data_path):
         """Returns data directories under the path(For COHFACE dataset)."""
-        data_dirs = glob.glob(data_path + os.sep + "*")
+        data_dirs = glob.glob(data_path + os.sep + "[0-9]")
+        data_dirs.extend(glob.glob(data_path + os.sep + "[0-9][0-9]"))
         if not data_dirs:
             raise ValueError(self.dataset_name + " data paths empty!")
         dirs = list()

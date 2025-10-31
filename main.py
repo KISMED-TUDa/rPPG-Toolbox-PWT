@@ -214,6 +214,8 @@ if __name__ == "__main__":
             train_loader = data_loader.RLAPLoader.RLAPLoader
         elif config.TRAIN.DATA.DATASET == "KISMED":
             train_loader = data_loader.KISMEDLoader.KISMEDLoader
+        elif config.TRAIN.DATA.DATASET == "KISMEDSigmaFP":
+            train_loader = data_loader.KISMEDLoader.KISMEDLoaderSigmaFP
         else:
             raise ValueError("Unsupported dataset! Currently supporting UBFC-rPPG, PURE, MMPD, \
                              SCAMPS, BP4D+ (Normal and BigSmall preprocessing), UBFC-PHYS, VIPL-HR-V1, COHFACE, RLAP \
@@ -311,6 +313,8 @@ if __name__ == "__main__":
             test_loader = data_loader.RLAPLoader.RLAPLoader
         elif config.TEST.DATA.DATASET == "KISMED":
             test_loader = data_loader.KISMEDLoader.KISMEDLoader
+        elif config.TEST.DATA.DATASET == "KISMEDSigmaFP":
+            test_loader = data_loader.KISMEDLoader.KISMEDLoaderSigmaFP
         else:
             raise ValueError("Unsupported dataset! Currently supporting UBFC-rPPG, PURE, MMPD, \
                              SCAMPS, BP4D+ (Normal and BigSmall preprocessing), UBFC-PHYS, VIPL-HR-V1, COHFACE, RLAP \
@@ -359,6 +363,8 @@ if __name__ == "__main__":
             unsupervised_loader = data_loader.RLAPLoader.RLAPLoader
         elif config.UNSUPERVISED.DATA.DATASET == "KISMED":
             unsupervised_loader = data_loader.KISMEDLoader.KISMEDLoader
+        elif config.UNSUPERVISED.DATA.DATASET == "KISMEDSigmaFP":
+            unsupervised_loader = data_loader.KISMEDLoaderSigmaFP.KISMEDLoaderSigmaFP
         else:
             raise ValueError("Unsupported dataset! Currently supporting UBFC-rPPG, PURE, MMPD, \
                              SCAMPS, BP4D+, UBFC-PHYS, VIPL-HR-V1, COHFACE, RLAP and KISMED.")

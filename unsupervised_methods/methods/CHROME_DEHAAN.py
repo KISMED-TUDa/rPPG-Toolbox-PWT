@@ -51,10 +51,21 @@ def CHROME_DEHAAN(frames,FS):
     BVP = S
     return BVP
 
-def process_video(frames):
+def _deprc_process_video(frames):
     "Calculates the average value of each frame."
     RGB = []
     for frame in frames:
         sum = np.sum(np.sum(frame, axis=0), axis=0)
         RGB.append(sum/(frame.shape[0]*frame.shape[1]))
+    return np.asarray(RGB)
+
+def process_video(frames):
+    """Calculates the average value of each frame."""
+    RGB = []
+    for frame in frames:
+        summation = np.sum(np.sum(frame, axis=0), axis=0)
+        RGB.append(summation / (frame.shape[0] * frame.shape[1]))
+        # #TODO find out why the version below is not better
+        # changed to account for black pixels after masking
+        #RGB.append(summation / (frame>0).sum())
     return np.asarray(RGB)
